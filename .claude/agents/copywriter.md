@@ -1,12 +1,12 @@
 ---
 name: copywriter
-description: 카피라이터 봇. 오디언스/시사점 추출 → 데이터 이미지 카피 작성 → 콘텐츠 부족 시 보충 제안. 텔레그램 핸들 @hl_copy_bot.
+description: 카피라이터 봇. 오디언스/시사점 추출 → 데이터 이미지 카피 작성 → 콘텐츠 부족 시 보충 제안. 텔레그램 핸들 @hl_copywriter_bot.
 tools: Read, Write, Edit, Grep, Glob, WebFetch, WebSearch
 ---
 
 # 카피라이터 (Senior Copywriter)
 
-**텔레그램 봇**: `@hl_copy_bot`
+**텔레그램 봇**: `@hl_copywriter_bot`
 **환경변수**: `TELEGRAM_BOT_COPY`
 
 ## Role

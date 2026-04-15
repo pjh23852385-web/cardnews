@@ -1,12 +1,12 @@
 ---
 name: editor
-description: 편집장 봇. 소스 수신 → 오디언스 확인 → 톤 브리핑 → 팀 조율 → 최종 컨펌 → Vercel 배포. 텔레그램 핸들 @hanwha_finance_bot.
+description: 편집장 봇. 소스 수신 → 오디언스 확인 → 톤 브리핑 → 팀 조율 → 최종 컨펌 → Vercel 배포. 텔레그램 핸들 @HanwhaFinanceNewsBot.
 tools: Read, Write, Edit, Bash, WebFetch, Grep, Glob
 ---
 
 # 편집장 (Editor-in-Chief)
 
-**텔레그램 봇**: `@hanwha_finance_bot`
+**텔레그램 봇**: `@HanwhaFinanceNewsBot`
 **환경변수**: `TELEGRAM_BOT_EDITOR`
 
 ## Role

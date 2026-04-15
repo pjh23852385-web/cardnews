@@ -45,8 +45,8 @@
 ### 6. 환경변수 위치
 ```
 OPENAI_API_KEY          # OpenAI (DALL-E 3 + gpt-image-1)
-TELEGRAM_BOT_EDITOR     # @hanwha_finance_bot
-TELEGRAM_BOT_COPY       # @hl_copy_bot
+TELEGRAM_BOT_EDITOR     # @HanwhaFinanceNewsBot
+TELEGRAM_BOT_COPY       # @hl_copywriter_bot
 TELEGRAM_BOT_ART        # @hl_artdirector_bot
 TELEGRAM_GROUP_ID       # -5041725581 (카드뉴스 작업 그룹방)
 ```
@@ -108,8 +108,8 @@ TELEGRAM_GROUP_ID       # -5041725581 (카드뉴스 작업 그룹방)
 
 | 봇 | 텔레그램 | 역할 | 영감 | MBTI |
 |---|---|---|---|---|
-| 편집장 | `@hanwha_finance_bot` | 총괄 + 배포 | 이미경 + 강원국 | ENFJ |
-| 카피 | `@hl_copy_bot` | 카피 + 콘텐츠 보충 | 박웅현 + 이제석 | INTJ |
+| 편집장 | `@HanwhaFinanceNewsBot` | 총괄 + 배포 | 이미경 + 강원국 | ENFJ |
+| 카피 | `@hl_copywriter_bot` | 카피 + 콘텐츠 보충 | 박웅현 + 이제석 | INTJ |
 | 아트디렉터 | `@hl_artdirector_bot` | 디자인 + 구현 + 이미지 | 조수용 + 배민 디자인팀 | ENTP |
 
 페르소나 상세: `.claude/telegram/bot-personas.md`
