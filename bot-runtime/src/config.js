@@ -21,6 +21,7 @@ export const paths = {
   assetsDir: path.join(PROJECT_ROOT, 'assets'),
   agentsDir: path.join(PROJECT_ROOT, '.claude', 'agents'),
   telegramDir: path.join(PROJECT_ROOT, '.claude', 'telegram'),
+  sessionFile: path.join(__dirname, '..', 'session.json'),  // bot-runtime/session.json — 재시작 복원용
 };
 
 function required(name) {

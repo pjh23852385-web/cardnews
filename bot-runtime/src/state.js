@@ -1,5 +1,7 @@
-// 대화 상태 머신 (메모리 기반, 그룹방당 1세션)
-import { SESSION_TIMEOUT_MS } from './config.js';
+// 대화 상태 머신 — 메모리 캐시 + JSON 파일 영속화 (재시작 복원용)
+import fs from 'node:fs';
+import path from 'node:path';
+import { SESSION_TIMEOUT_MS, paths } from './config.js';
 
 export const STATES = {
   IDLE: 'idle',
@@ -12,13 +14,53 @@ export const STATES = {
   DEPLOYING: 'deploying',
 };
 
-let session = null;
+const FILE = paths.sessionFile;
+
+// 시작 시 디스크에서 로드 (재시작 후 복원)
+let session = _loadFromDisk();
+
+function _loadFromDisk() {
+  try {
+    if (!fs.existsSync(FILE)) return null;
+    const raw = fs.readFileSync(FILE, 'utf-8');
+    if (!raw.trim()) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    // 타임아웃 지난 세션은 버리기
+    if (Date.now() - (parsed.lastActivity || 0) > SESSION_TIMEOUT_MS) {
+      console.log(`[state] 저장된 세션이 타임아웃 지남 (${Math.round((Date.now() - parsed.lastActivity) / 60000)}분 전) — 무시`);
+      try { fs.unlinkSync(FILE); } catch {}
+      return null;
+    }
+    console.log(`[state] 세션 복원: state=${parsed.state} audience=${parsed.audience || '미정'} options=${parsed.options?.length || 0}개`);
+    return parsed;
+  } catch (e) {
+    console.warn(`[state] session.json 읽기 실패 (${e.message}) — 신규 시작`);
+    return null;
+  }
+}
+
+function _saveToDisk() {
+  try {
+    if (session) {
+      // 원자적 쓰기: temp 에 쓰고 rename (크래시 중 파일 손상 방지)
+      const tmp = FILE + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(session, null, 2), 'utf-8');
+      fs.renameSync(tmp, FILE);
+    } else {
+      if (fs.existsSync(FILE)) fs.unlinkSync(FILE);
+    }
+  } catch (e) {
+    console.error(`[state] session.json 쓰기 실패:`, e.message);
+  }
+}
 
 export function getSession() {
   if (!session) return null;
   // 타임아웃 체크
   if (Date.now() - session.lastActivity > SESSION_TIMEOUT_MS) {
     session = null;
+    _saveToDisk();
     return null;
   }
   return session;
@@ -45,15 +87,18 @@ export function newSession(initial = {}) {
     revisionCount: 0,             // 수정 반복 횟수 (매 revision마다 새 preview URL 생성)
     ...initial,
   };
+  _saveToDisk();
   return session;
 }
 
 export function updateSession(patch) {
   if (!session) return null;
   Object.assign(session, patch, { lastActivity: Date.now() });
+  _saveToDisk();
   return session;
 }
 
 export function resetSession() {
   session = null;
+  _saveToDisk();
 }
