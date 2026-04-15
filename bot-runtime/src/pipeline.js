@@ -55,9 +55,8 @@ JSON으로만 답하세요:
 }
 
 /**
- * 옵션 선택 파싱 (Sonnet) — 선택 + 부가 커스터마이징 + 질문 분리
- * 반환: { choice: '①'|'②'|'③'|null, notes: [추가 지시], questions: [], unrelated: bool }
- * 예: "1번 좋은데 ③의 카운터업도 가져와줘" → { choice:'①', notes:['③의 카운터업도 적용'], ... }
+ * 옵션 선택 파싱 (Sonnet) — 선택 + 재설계 요청 + 부가 커스터마이징 + 질문 분리
+ * 반환: { choice, regenerate, regenerateIds, notes, questions, unrelated }
  */
 async function parseOptionChoice(text, session) {
   const optionsText = (session?.options || [])
@@ -65,12 +64,14 @@ async function parseOptionChoice(text, session) {
     .join('\n');
   const recommended = session?.recommendedOption || '없음';
 
-  const system = `당신은 카드뉴스 작업 파서입니다. 사용자가 3옵션 중 어느 걸 고르는지 + 추가로 어떤 커스터마이징을 원하는지 분리.
+  const system = `당신은 카드뉴스 작업 파서입니다. 사용자가 3옵션 중 어느 걸 고르는지 + 옵션 재설계를 원하는지 + 추가 커스터마이징을 원하는지 분리.
 
 응답 형식 (JSON만):
 \`\`\`json
 {
   "choice": "①|②|③|null",
+  "regenerate": false,
+  "regenerate_ids": ["①","③"],
   "notes": ["추가 요구사항 목록"],
   "questions": ["사용자가 묻는 질문 목록"],
   "unrelated": false
@@ -78,10 +79,14 @@ async function parseOptionChoice(text, session) {
 \`\`\`
 
 규칙:
-- "1번"/"①"/"첫번째" → "①"
+- "1번"/"①"/"첫번째" → choice="①"
 - "추천대로"/"편집장 대로" → 편집장 추천 옵션 (${recommended})
 - "①로 가되 ③의 카운터업 추가" → choice:"①", notes:["③의 카운터업 추가"]
 - "1번 좋은데 색을 더 밝게" → choice:"①", notes:["색을 더 밝게"]
+- **재설계/재생성 요청**: "①과 ③을 다시 뽑아줘" / "1,3번 리디자인" / "재설계해서 보여줘" / "스타일 비슷해서 새로 만들어줘"
+  → regenerate:true, regenerate_ids:["①","③"], choice:null
+  → 대상 옵션 명시 없으면 regenerate_ids: [] (= 전체 재설계)
+- 재설계 요청이면서 동시에 선택도 하는 건 없음. regenerate=true 일 땐 choice=null
 - 옵션 답 전혀 없고 질문/잡담만 → choice:null, unrelated:true 또는 questions에 담기
 - choice 모호하면 null`;
 
@@ -95,15 +100,20 @@ ${optionsText || '(옵션 없음)'}
   try {
     const { json } = await callAgent(system, prompt, { model: models.main, maxTokens: 400, json: true });
     if (json) {
+      const regenIds = Array.isArray(json.regenerate_ids)
+        ? json.regenerate_ids.filter((id) => ['①', '②', '③'].includes(id))
+        : [];
       return {
         choice: ['①', '②', '③'].includes(json.choice) ? json.choice : null,
+        regenerate: !!json.regenerate,
+        regenerateIds: regenIds,
         notes: Array.isArray(json.notes) ? json.notes.filter(Boolean) : [],
         questions: Array.isArray(json.questions) ? json.questions.filter(Boolean) : [],
         unrelated: !!json.unrelated,
       };
     }
   } catch {}
-  return { choice: null, notes: [], questions: [], unrelated: false };
+  return { choice: null, regenerate: false, regenerateIds: [], notes: [], questions: [], unrelated: false };
 }
 
 /**
@@ -797,6 +807,12 @@ export async function handleUserText(text) {
         updateSession({ userNotes: allNotes });
       }
 
+      // 재설계 요청이 먼저 (선택과 동시 발생 안 함)
+      if (parsed.regenerate) {
+        await handleOptionRegenerate(parsed.regenerateIds, parsed.notes);
+        break;
+      }
+
       // 옵션 선택 있으면 진행 (ack + 작업 시작)
       if (parsed.choice) {
         if (parsed.notes.length > 0) {
@@ -955,6 +971,143 @@ ${sourceExcerpt}
   });
 
   return Promise.all(tasks);
+}
+
+/**
+ * 기존 옵션 중 일부(또는 전체)를 재설계해서 새 미리보기 생성
+ * @param {string[]} targetIds - 재설계할 옵션 ID ['①','③']. 빈 배열이면 전체
+ * @param {string[]} userNotes - 사용자의 재설계 요구사항 (차별화 방향 등)
+ */
+async function handleOptionRegenerate(targetIds, userNotes) {
+  const s = getSession();
+  if (!s) return;
+  if (!Array.isArray(s.options) || s.options.length === 0) {
+    await sendMessage(
+      bots.editor,
+      `⚠️ 재설계할 기존 옵션이 없어요. 소스부터 다시 받아서 3옵션 제안할까요?\n\n— 편집장`,
+    );
+    return;
+  }
+
+  const ids = targetIds.length > 0 ? targetIds : s.options.map((o) => o.id);
+  const targetsLabel = ids.join('·');
+  const keepIds = s.options.map((o) => o.id).filter((id) => !ids.includes(id));
+  const notesLine = (userNotes && userNotes.length > 0) ? userNotes.join(' / ') : '(차별화 해달라는 요구)';
+
+  log.info('REGENERATE', `targets=${targetsLabel} keep=${keepIds.join(',')||'없음'} notes="${notesLine.slice(0,80)}"`);
+
+  await sendMessage(
+    bots.editor,
+    `🔄 ${targetsLabel} 재설계 요청 받았어요. 아트한테 넘길게요. 60~90초 걸려요.\n\n— 편집장`,
+  );
+  await sendMessage(
+    bots.artDirector,
+    `알겠어요. ${targetsLabel} 확실히 다른 방향으로 뽑아올게요. 기존 ${keepIds.join('·') || '없음'}은 유지.\n\n— 아트`,
+  );
+
+  // 아트한테 신규 옵션 정의 요청 (기존과 차별화 명시)
+  const artSystem = await loadAgentSystem('art-director');
+  const keepOptionsJson = s.options.filter((o) => keepIds.includes(o.id));
+  const targetOptionsJson = s.options.filter((o) => ids.includes(o.id));
+
+  const proposalPrompt = `주현대리가 기존 ${targetsLabel} 옵션을 재설계해달라고 했습니다. 이유: "${notesLine}"
+
+## 유지할 옵션 (차별화 기준 — 이것들과 확실히 달라야 함)
+${JSON.stringify(keepOptionsJson, null, 2)}
+
+## 재설계 대상 (같은 id, 완전 새 스타일)
+${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세요`).join('\n')}
+
+## 컨텍스트
+- 오디언스: ${s.audience}
+- 사용자 메모: ${notesLine}
+
+## 응답 형식 (JSON만)
+\`\`\`json
+{
+  "options": [
+    { "id":"①", "name":"<감성 이름>", "colors":"<색감 설명>", "layout":"<레이아웃 설명>", "interaction":"<인터랙션 2~3개>", "fits":"<왜 이 오디언스에 맞는지 1줄>" }
+  ]
+}
+\`\`\`
+
+규칙:
+- options 배열에는 재설계 대상 ${targetsLabel} 만 포함 (${ids.length}개)
+- id는 원래 그대로 유지 (${targetsLabel})
+- 유지할 옵션과 색감·레이아웃·인터랙션 모두 뚜렷이 다르게
+- name은 감성 이름 ("암실 호텔 다이닝", "완벽 해킹룸 에메랄드" 스타일)`;
+
+  let newOptions = [];
+  try {
+    const { json } = await callAgent(artSystem, proposalPrompt, {
+      model: models.main,
+      maxTokens: 1500,
+      json: true,
+    });
+    if (json && Array.isArray(json.options)) {
+      newOptions = json.options.filter((o) => ids.includes(o.id));
+    }
+  } catch (e) {
+    log.error('REGENERATE', 'art 재제안 실패', e);
+  }
+
+  if (newOptions.length === 0) {
+    await sendMessage(
+      bots.editor,
+      `⚠️ 아트 재제안 실패했어요. 잠시 후 다시 "재설계" 요청해 주세요. 아니면 기존 옵션 중 선택도 OK.\n\n— 편집장`,
+    );
+    return;
+  }
+
+  // 아트가 새 스타일 요약 발화
+  const talkParts = [`🎨 ${targetsLabel} 다시 뽑았어요. 기존이랑 확실히 다릅니다:`, ''];
+  for (const opt of newOptions) {
+    talkParts.push(`${opt.id} **${opt.name}**`);
+    talkParts.push(`   🎨 ${opt.colors}`);
+    talkParts.push(`   📐 ${opt.layout}`);
+    talkParts.push(`   ✨ ${opt.interaction}`);
+    talkParts.push(`   🎯 ${opt.fits}`);
+    talkParts.push('');
+  }
+  talkParts.push('미리보기 만드는 중이에요.');
+  talkParts.push('— 아트');
+  await sendMessage(bots.artDirector, talkParts.join('\n'));
+
+  // 새 옵션만 미리보기 생성·배포
+  let newPreviews = [];
+  try {
+    newPreviews = await generateOptionPreviews(s, newOptions, s.audience);
+  } catch (e) {
+    log.error('REGENERATE', '미리보기 생성 실패', e);
+    await sendMessage(
+      bots.editor,
+      `⚠️ 새 미리보기 배포 실패 (${String(e.message || e).slice(0, 120)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`,
+    );
+  }
+
+  // 세션 옵션 업데이트 (targets 교체, keep은 그대로)
+  const mergedOptions = s.options.map((orig) => {
+    const replaced = newOptions.find((n) => n.id === orig.id);
+    return replaced || orig;
+  });
+  updateSession({ options: mergedOptions });
+
+  if (newPreviews.length > 0) {
+    const lines = [`🎨 새 미리보기 나왔어요 (${targetsLabel}):`];
+    newPreviews.forEach((p) => {
+      lines.push(`${p.id} ${p.name}\n   👉 ${p.url}`);
+    });
+    if (keepIds.length > 0) {
+      lines.push('');
+      lines.push(`※ ${keepIds.join('·')} 는 기존 미리보기 그대로입니다.`);
+    }
+    await sendMessage(bots.artDirector, lines.join('\n\n'));
+  }
+
+  await sendMessage(
+    bots.editor,
+    `@주현대리 ①/②/③ 중 어느 걸로 가실까요? 또 다시 뽑을 거 있으면 말씀 주세요.\n\n— 편집장 (체크포인트 ②)`,
+  );
 }
 
 /**
