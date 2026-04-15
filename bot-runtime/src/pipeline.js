@@ -996,6 +996,15 @@ async function handleOptionRegenerate(targetIds, userNotes) {
 
   log.info('REGENERATE', `targets=${targetsLabel} keep=${keepIds.join(',')||'없음'} notes="${notesLine.slice(0,80)}"`);
 
+  // 3개 초과 요청 감지 ("4개/5개/6개로..." 같은 문구) — 시스템 제약 안내
+  const overCapMatch = notesLine.match(/([4-9]|[1-9]\d)개/);
+  if (overCapMatch) {
+    await sendMessage(
+      bots.editor,
+      `📌 시스템은 한 번에 최대 **3개 옵션**만 제시해요 (선택 피로 방지). 3개 슬롯을 서로 확실히 다르게 다시 뽑아드릴게요.\n\n— 편집장`,
+    );
+  }
+
   await sendMessage(
     bots.editor,
     `🔄 ${targetsLabel} 재설계 요청 받았어요. 아트한테 넘길게요. 60~90초 걸려요.\n\n— 편집장`,
@@ -1037,16 +1046,20 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
 - 유지할 옵션과 색감·레이아웃·인터랙션 모두 뚜렷이 다르게
 - name은 감성 이름 ("암실 호텔 다이닝", "완벽 해킹룸 에메랄드" 스타일)`;
 
+  // 옵션 하나당 ~700토큰 + 래퍼 오버헤드 → id 개수만큼 스케일
+  const proposalMaxTokens = 800 + ids.length * 900;
+
   let newOptions = [];
   try {
     const { json } = await callAgent(artSystem, proposalPrompt, {
       model: models.main,
-      maxTokens: 1500,
+      maxTokens: proposalMaxTokens,
       json: true,
     });
     if (json && Array.isArray(json.options)) {
       newOptions = json.options.filter((o) => ids.includes(o.id));
     }
+    log.info('REGENERATE', `art.propose parsed=${newOptions.length}/${ids.length} maxTok=${proposalMaxTokens}`);
   } catch (e) {
     log.error('REGENERATE', 'art 재제안 실패', e);
   }
