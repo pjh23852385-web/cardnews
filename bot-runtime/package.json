@@ -1,0 +1,20 @@
+{
+  "name": "cardnews-bot-runtime",
+  "version": "0.1.0",
+  "description": "Telegram group bot runtime for card news factory - 3 bots (editor/copywriter/art-director) with Claude API",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test-connect": "node src/smoke.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
+    "dotenv": "^16.4.5",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -42,9 +42,16 @@
 - 하드코딩 금지. 깃 커밋 금지 (`.gitignore`에 명시됨).
 - **절대 채팅/로그에 키 값을 노출하지 않는다.**
 
-### 6. 환경변수 위치
+### 6. 모델 설정 (bot-runtime LLM 호출)
+
+- **라우터/봇 기본 모델**: `claude-sonnet-4-6` (자연 대화, 편집장 발화, 오디언스/시사점 추출, 아트 3옵션)
+- **빠른 판단(분기)만**: `claude-haiku-4-5-20251001` 허용 (옵션/컨펌 파싱 같은 분류)
+- **HTML 생성**: `claude-opus-4-6` (16K 토큰 출력)
+
+### 7. 환경변수 위치
 ```
 OPENAI_API_KEY          # OpenAI (DALL-E 3 + gpt-image-1)
+ANTHROPIC_API_KEY       # Phase 2 Node.js 폴링 런타임에서 에이전트 LLM 호출
 TELEGRAM_BOT_EDITOR     # @HanwhaFinanceNewsBot
 TELEGRAM_BOT_COPY       # @hl_copywriter_bot
 TELEGRAM_BOT_ART        # @hl_artdirector_bot
