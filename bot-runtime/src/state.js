@@ -7,10 +7,12 @@ export const STATES = {
   IDLE: 'idle',
   AWAITING_AUDIENCE: 'awaiting_audience',          // ✋ 체크포인트 ①
   AWAITING_SCOPE: 'awaiting_scope',                // 소스에 주제 여러 개일 때
-  AWAITING_OPTION: 'awaiting_option',              // ✋ 체크포인트 ② (3옵션 중 선택)
+  AWAITING_OPTION: 'awaiting_option',              // ✋ 체크포인트 ② — 스타일 프리뷰 중 복수 선택
   AWAITING_CONTENT_SUPPLEMENT: 'awaiting_content_supplement', // 카피 보충 제안
-  BUILDING: 'building',                            // 카피+아트 작업 중
-  AWAITING_CONFIRM: 'awaiting_confirm',            // ✋ 체크포인트 ③
+  BUILDING_FULLS: 'building_fulls',                // 카피 1회 + 스타일별 풀 HTML 병렬 생성
+  AWAITING_FINAL_CHOICE: 'awaiting_final_choice',  // ✋ 체크포인트 ③ — N개 풀 HTML 중 최종 1개 + 버전 선택
+  BUILDING: 'building',                            // (레거시 — 단일 빌드 경로용, 필요 시 유지)
+  AWAITING_CONFIRM: 'awaiting_confirm',            // (레거시 단일 컨펌)
   DEPLOYING: 'deploying',
 };
 
@@ -84,7 +86,13 @@ export function newSession(initial = {}) {
     slug: null,
     deployUrl: null,
     userNotes: [],                // 사용자가 단계 진행 중 던진 부가 요구/메모 (HTML 생성 시 반영)
-    revisionCount: 0,             // 수정 반복 횟수 (매 revision마다 새 preview URL 생성)
+    revisionCount: 0,             // 수정 반복 횟수
+    // 새 플로우 필드 (파일 첨부 + 복수 스타일 + 버전 관리)
+    previewAttachments: null,     // [{id,name,path}] — ③ 단계 미니 프리뷰 파일 경로
+    styleChoices: [],             // ['①','③'] — ④ 단계에서 주현대리가 고른 스타일들
+    copyDraft: null,              // 카피라이터가 뽑은 공통 카피 (JSON)
+    fullVersions: {},             // { '①': [{v:1,path,builtAt}], '②': [{v:1,...},{v:2,...}], ... }
+    finalChoice: null,            // { id:'①', version:1 } — ⑦ 단계에서 배포할 대상
     ...initial,
   };
   _saveToDisk();

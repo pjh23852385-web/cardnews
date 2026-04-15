@@ -6,7 +6,7 @@ import { promisify } from 'node:util';
 import { bots, paths, models } from './config.js';
 import { callAgent } from './claude.js';
 import { loadAgentSystem, loadCurrentDesign } from './agents.js';
-import { sendMessage, sendTyping } from './telegram.js';
+import { sendMessage, sendTyping, sendDocument } from './telegram.js';
 import { STATES, newSession, getSession, updateSession, resetSession } from './state.js';
 import * as log from './logger.js';
 
@@ -55,8 +55,68 @@ JSON으로만 답하세요:
 }
 
 /**
- * 옵션 선택 파싱 (Sonnet) — 선택 + 재설계 요청 + 부가 커스터마이징 + 질문 분리
- * 반환: { choice, regenerate, regenerateIds, notes, questions, unrelated }
+ * 최종 선택 파싱 (Sonnet) — 어느 스타일 어느 버전으로 확정/수정/되돌리기/취소인지
+ * 반환: { action, finalId, finalVersion, reviseId, notes, questions, unrelated }
+ *   action: 'confirm' | 'revise' | 'rollback' | 'cancel' | 'question' | 'unclear'
+ */
+async function parseFinalChoice(text, session) {
+  const idsList = (session?.fullVersions && Object.keys(session.fullVersions)) || [];
+  const versionsLine = idsList
+    .map((id) => `${id}: v${(session.fullVersions[id] || []).map((x) => x.v).join(',')}`)
+    .join(' / ');
+
+  const system = `당신은 카드뉴스 작업 파서입니다. 완성본 여러 개를 보고 주현대리가 뭘 원하는지 분리.
+
+응답 형식 (JSON만):
+\`\`\`json
+{
+  "action": "confirm|revise|rollback|cancel|question|unclear",
+  "final_id": "①|②|③|null",
+  "final_version": 2,
+  "revise_id": "①|②|③|null",
+  "notes": ["수정 내용"],
+  "questions": ["질문"],
+  "unrelated": false
+}
+\`\`\`
+
+규칙:
+- "**confirm**" = 이걸로 최종 배포. 예: "①로 컨펌" / "②로 가자" / "2번 배포" / "확정 ①" → final_id="①/②/③"
+  - "최신 버전" 명시 없으면 final_version 은 null (= 최신 버전 자동 사용)
+  - "① v1으로 가자" → final_version=1
+- "**revise**" = 특정 옵션 수정해서 새 버전 뽑아줘. 예: "① 수정 3번슬라이드 약해" / "② 색 밝게 다시" → revise_id + notes
+- "**rollback**" = 예전 버전으로 돌아가. 예: "① v1 다시 봐" → final_id="①", final_version=1, action="rollback" (재배포 아님)
+- "**cancel**" = "취소" / "리셋" / "처음부터"
+- "**question**" = 그냥 질문. "이거 한국어로 나와?" 등
+- 모호하면 unclear`;
+
+  const prompt = `현재 완성본 (${idsList.length}개 스타일):
+${versionsLine || '(없음)'}
+
+사용자 메시지: "${text}"`;
+
+  try {
+    const { json } = await callAgent(system, prompt, { model: models.main, maxTokens: 400, json: true });
+    if (json) {
+      const validIds = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
+      return {
+        action: ['confirm', 'revise', 'rollback', 'cancel', 'question', 'unclear'].includes(json.action) ? json.action : 'unclear',
+        finalId: validIds.includes(json.final_id) ? json.final_id : null,
+        finalVersion: Number.isInteger(json.final_version) ? json.final_version : null,
+        reviseId: validIds.includes(json.revise_id) ? json.revise_id : null,
+        notes: Array.isArray(json.notes) ? json.notes.filter(Boolean) : [],
+        questions: Array.isArray(json.questions) ? json.questions.filter(Boolean) : [],
+        unrelated: !!json.unrelated,
+      };
+    }
+  } catch {}
+  return { action: 'unclear', finalId: null, finalVersion: null, reviseId: null, notes: [], questions: [], unrelated: false };
+}
+
+/**
+ * 옵션 선택 파싱 (Sonnet) — 복수 선택 + 재설계 요청 + 부가 커스터마이징 + 질문 분리
+ * 반환: { choices, regenerate, regenerateIds, notes, questions, unrelated }
+ *   choices: 스타일 선택 ID 배열 ['①'] 또는 ['①','③'] 또는 ['①','②','③'] (복수 허용)
  */
 async function parseOptionChoice(text, session) {
   const optionsText = (session?.options || [])
@@ -64,12 +124,12 @@ async function parseOptionChoice(text, session) {
     .join('\n');
   const recommended = session?.recommendedOption || '없음';
 
-  const system = `당신은 카드뉴스 작업 파서입니다. 사용자가 3옵션 중 어느 걸 고르는지 + 옵션 재설계를 원하는지 + 추가 커스터마이징을 원하는지 분리.
+  const system = `당신은 카드뉴스 작업 파서입니다. 사용자가 스타일 옵션 중 어느 것들을 고르는지(복수 허용) + 옵션 재설계를 원하는지 + 추가 커스터마이징을 원하는지 분리.
 
 응답 형식 (JSON만):
 \`\`\`json
 {
-  "choice": "①|②|③|null",
+  "choices": ["①","③"],
   "regenerate": false,
   "regenerate_ids": ["①","③"],
   "notes": ["추가 요구사항 목록"],
@@ -79,16 +139,18 @@ async function parseOptionChoice(text, session) {
 \`\`\`
 
 규칙:
-- "1번"/"①"/"첫번째" → choice="①"
-- "추천대로"/"편집장 대로" → 편집장 추천 옵션 (${recommended})
-- "①로 가되 ③의 카운터업 추가" → choice:"①", notes:["③의 카운터업 추가"]
-- "1번 좋은데 색을 더 밝게" → choice:"①", notes:["색을 더 밝게"]
+- 선택은 **복수 허용** (주현대리가 여러 스타일 후보로 담을 수 있음)
+- "1번"/"①"/"첫번째" → choices=["①"]
+- "①③" / "1,3번" / "첫번째랑 세번째" / "1과 3" → choices=["①","③"]
+- "셋 다" / "1·2·3 전부" / "다 해" → choices=["①","②","③"]
+- "추천대로"/"편집장 대로" → choices=[편집장 추천 "${recommended}"]
+- "①로 가되 색을 더 밝게" → choices=["①"], notes=["색을 더 밝게"]
 - **재설계/재생성 요청**: "①과 ③을 다시 뽑아줘" / "1,3번 리디자인" / "재설계해서 보여줘" / "스타일 비슷해서 새로 만들어줘"
-  → regenerate:true, regenerate_ids:["①","③"], choice:null
-  → 대상 옵션 명시 없으면 regenerate_ids: [] (= 전체 재설계)
-- 재설계 요청이면서 동시에 선택도 하는 건 없음. regenerate=true 일 땐 choice=null
-- 옵션 답 전혀 없고 질문/잡담만 → choice:null, unrelated:true 또는 questions에 담기
-- choice 모호하면 null`;
+  → regenerate:true, regenerate_ids:["①","③"], choices:[]
+  → 대상 옵션 명시 없으면 regenerate_ids:[] (= 전체 재설계)
+- 재설계 요청이면서 동시에 선택도 하는 건 없음. regenerate=true 일 땐 choices=[]
+- 옵션 답 전혀 없고 질문/잡담만 → choices=[], unrelated:true 또는 questions에 담기
+- choices 모호하면 []`;
 
   const prompt = `3옵션:
 ${optionsText || '(옵션 없음)'}
@@ -98,13 +160,21 @@ ${optionsText || '(옵션 없음)'}
 사용자 메시지: "${text}"`;
 
   try {
-    const { json } = await callAgent(system, prompt, { model: models.main, maxTokens: 400, json: true });
+    const { json } = await callAgent(system, prompt, { model: models.main, maxTokens: 500, json: true });
     if (json) {
+      const validIds = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
       const regenIds = Array.isArray(json.regenerate_ids)
-        ? json.regenerate_ids.filter((id) => ['①', '②', '③'].includes(id))
+        ? json.regenerate_ids.filter((id) => validIds.includes(id))
         : [];
+      let choices = Array.isArray(json.choices)
+        ? json.choices.filter((id) => validIds.includes(id))
+        : [];
+      // choice(단수) 호환 — 구버전 응답 대응
+      if (choices.length === 0 && validIds.includes(json.choice)) {
+        choices = [json.choice];
+      }
       return {
-        choice: ['①', '②', '③'].includes(json.choice) ? json.choice : null,
+        choices,
         regenerate: !!json.regenerate,
         regenerateIds: regenIds,
         notes: Array.isArray(json.notes) ? json.notes.filter(Boolean) : [],
@@ -113,7 +183,7 @@ ${optionsText || '(옵션 없음)'}
       };
     }
   } catch {}
-  return { choice: null, regenerate: false, regenerateIds: [], notes: [], questions: [], unrelated: false };
+  return { choices: [], regenerate: false, regenerateIds: [], notes: [], questions: [], unrelated: false };
 }
 
 /**
@@ -493,27 +563,31 @@ ${s.sourceText}
     `👍 아트, 좋네요. 제가 오디언스 기준으로 정리해서 주현대리께 여쭤볼게요.\n\n— 편집장`,
   );
 
-  // 미니 미리보기 3개 병렬 생성 + 배포 (선택 도와주기)
+  // 미니 미리보기 N개 병렬 생성 — 파일로만 저장하고 Telegram 첨부로 전달
   await sendMessage(
     bots.editor,
-    `📐 아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 60~90초 걸려요. 잠깐만요.\n\n— 편집장`,
+    `📐 아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초 걸려요. HTML 파일로 직접 보내드릴게요 — 클릭해서 열어보시면 됩니다.\n\n— 편집장`,
   );
 
   let previews = [];
   try {
     previews = await generateOptionPreviews(s, artJson.options, audience);
-    if (previews.length === artJson.options.length) {
-      const lines = ['🎨 미리보기 나왔어요. 클릭해서 열어봐:'];
-      previews.forEach((p) => {
-        lines.push(`${p.id} ${p.name}\n   👉 ${p.url}`);
-      });
-      await sendMessage(bots.artDirector, lines.join('\n\n'));
+    if (previews.length > 0) {
+      await sendMessage(bots.artDirector, `🎨 미리보기 나왔어요. ${previews.length}개 첨부 드려요 — 클릭해서 열어보세요.\n\n— 아트`);
+      for (const p of previews) {
+        try {
+          await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`);
+        } catch (e) {
+          log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e);
+        }
+      }
+      updateSession({ previewAttachments: previews });
     }
   } catch (e) {
-    console.error('미리보기 생성/배포 실패:', e);
+    log.error('PREVIEW', '미리보기 생성 실패', e);
     await sendMessage(
       bots.editor,
-      `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 보고 선택해도 OK.\n\n— 편집장`,
+      `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`,
     );
   }
 
@@ -553,7 +627,238 @@ ${JSON.stringify(options, null, 2)}
 }
 
 // ──────────────────────────────────────────────
-// 3) 옵션 선택 → 카피·HTML 생성 → 컨펌 요청
+// 3) 스타일 선택(복수) → 카피 1회 + 스타일별 풀 HTML 병렬 생성 → Telegram 첨부
+// ──────────────────────────────────────────────
+export async function handleStyleChoices(choices) {
+  const s = getSession();
+  if (!s) return;
+  if (!choices || choices.length === 0) return;
+
+  const prevState = s.state;
+  updateSession({ state: STATES.BUILDING_FULLS, styleChoices: choices });
+  log.state(prevState, STATES.BUILDING_FULLS, `choices=${choices.join('·')}`);
+
+  const label = choices.join('·');
+  await sendMessage(
+    bots.editor,
+    `좋아요 @주현대리, **${label}** 풀 제작 들어갑니다. 카피 1회 뽑고 스타일별로 병렬 생성 — 약 90초 걸려요.\n\n— 편집장`,
+  );
+  await sendMessage(
+    bots.copywriter,
+    `카피 먼저 뽑고 아트 ${choices.length}개 스타일에 넘길게요.\n\n— 카피`,
+  );
+
+  const typingInterval = setInterval(() => {
+    typing(bots.copywriter).catch(() => {});
+    typing(bots.artDirector).catch(() => {});
+  }, 4000);
+
+  try {
+    await _runStyleBuild(choices, typingInterval);
+  } catch (e) {
+    clearInterval(typingInterval);
+    log.error('BUILDING_FULLS', `handleStyleChoices 실패 choices=${label}`, e);
+    const cur = getSession();
+    if (cur) {
+      updateSession({ state: STATES.AWAITING_OPTION });
+      log.state(STATES.BUILDING_FULLS, STATES.AWAITING_OPTION, 'error recovery');
+    }
+    await sendMessage(
+      bots.editor,
+      `⚠️ @주현대리 풀 제작 중 에러: ${String(e.message || e).slice(0, 160)}\n\n스타일 재선택 또는 "취소" 가능.\n\n— 편집장`,
+    ).catch(() => {});
+  }
+}
+
+async function _runStyleBuild(choices, typingInterval) {
+  const s = getSession();
+  if (!s) throw new Error('세션 사라짐');
+
+  // 선택된 옵션들만 필터
+  const selectedOptions = (s.options || []).filter((o) => choices.includes(o.id));
+  if (selectedOptions.length === 0) throw new Error(`선택된 스타일 ${choices.join('·')} 과 매칭되는 옵션 없음`);
+
+  // ── 1) 카피 1회 생성 (공통) ───────────────────────────
+  const copySystem = await loadAgentSystem('copywriter');
+  const notesBlock = (s.userNotes && s.userNotes.length > 0)
+    ? `\n## 🌟 사용자 요구사항\n${s.userNotes.map((n) => `- ${n}`).join('\n')}\n`
+    : '';
+  const copyPrompt = `카드뉴스 카피를 슬라이드별 JSON 배열로 뽑으세요. 스타일과 무관한 카피 공통본.
+
+## 컨텍스트
+- 오디언스: ${s.audience}
+- 노션 URL: ${s.notionUrl || '없음'}${notesBlock}
+
+## 본문
+${s.sourceText}
+
+## 핵심 철학 (CLAUDE.md)
+오디언스와 시사점은 항상 한 세트. 오디언스 없이 카피 안 쓴다. 시사점 없는 카피는 요약이지 카피 아님.
+
+## 요구사항
+- 12~18 슬라이드
+- 표지 + 챕터 디바이더 + 본문 + 시사점 박스 + CTA
+- 슬라이드마다: {kind, headline, subtitle, body, implication, data, cta_url}
+- headline: 돌직구, 독자를 다음 슬라이드로 당김
+- implication: "그래서 ${s.audience} 가 지금 뭘 해야 하는가"
+- 숫자·고유명사 살려서 (ARR 2,000억, GitHub 316,000★ 같은)
+
+## 출력 형식 (JSON만)
+\`\`\`json
+{
+  "title":"...",
+  "slides":[
+    {"kind":"cover","headline":"...","subtitle":"...","topics":["..."]},
+    {"kind":"chapter","num":"01","title":"...","sub":"..."},
+    {"kind":"body","headline":"...","body":"...","implication":"..."},
+    {"kind":"data","headline":"...","cards":[{"label":"...","value":"...","desc":"..."}],"implication":"..."},
+    {"kind":"cta","headline":"...","url":"${s.notionUrl || ''}"}
+  ]
+}
+\`\`\``;
+
+  log.info('BUILDING_FULLS', `copy.start audience=${s.audience}`);
+  const copyRes = await callAgent(copySystem, copyPrompt, {
+    model: models.main,
+    maxTokens: 8000,
+    json: true,
+  });
+  if (!copyRes.json || !Array.isArray(copyRes.json.slides)) {
+    throw new Error('카피 JSON 파싱 실패');
+  }
+  const copyJson = copyRes.json;
+  updateSession({ copyDraft: copyJson });
+  log.info('BUILDING_FULLS', `copy.ok slides=${copyJson.slides.length}`);
+
+  await sendMessage(
+    bots.copywriter,
+    `📝 카피 완성 (${copyJson.slides.length}장). 아트한테 넘겨요.\n\n— 카피`,
+  );
+
+  // ── 2) 스타일별 풀 HTML 병렬 생성 ─────────────────────
+  const design = await loadCurrentDesign();
+  const artSystem = await loadAgentSystem('art-director');
+
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const baseSlug = s.slug || `cardnews-${Date.now()}`;
+  const fullsDir = path.join(paths.outputDir, ym, baseSlug, 'fulls');
+  await fs.mkdir(fullsDir, { recursive: true });
+
+  const buildTasks = selectedOptions.map(async (opt) => {
+    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+    const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 — 카피는 고정). 한 파일 완성본.
+
+## 이 옵션의 스타일 정체성
+- 이름: ${opt.name}
+- 색감: ${opt.colors}
+- 레이아웃: ${opt.layout}
+- 인터랙션: ${opt.interaction}
+- 어울림: ${opt.fits}
+
+## 디자인 라이브러리 참고: ${design.name}
+${design.content.slice(0, 1200)}
+
+## 카피 (공통 — 이걸 슬라이드로 렌더링)
+${JSON.stringify(copyJson, null, 2)}
+
+## 요구사항
+1. **Swiper.js 11** vertical fade, 키보드/휠/터치
+2. Pretendard Variable + JetBrains Mono
+3. **PC 뷰** (1280px+): 여백·그리드·타이포 PC 최적화
+4. **모바일 뷰** (375~480px): clamp()로 자동 reflow, 터치 스와이프
+5. 숫자 카운터업 (data-count 속성)
+6. 상단 진행바 + 슬라이드 카운터 (01 / ${copyJson.slides.length})
+7. 위 스타일을 **정확히** 적용 (색·레이아웃·인터랙션 설정값)
+8. 인터랙션은 설정한 것 **반드시 작동** (CSS + JS 모두 구현)
+9. file:// 에서도 작동 (CDN 외부 리소스 OK)
+10. 마지막 슬라이드 CTA URL: ${s.notionUrl || '생략'}
+11. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
+
+    log.info('BUILDING_FULLS', `html.start id=${opt.id} name="${opt.name}"`);
+    const r = await callAgent(artSystem, htmlPrompt, {
+      model: models.heavy,
+      maxTokens: 16000,
+    });
+    let html = r.text.trim();
+    const cb = html.match(/```(?:html)?\s*\n?([\s\S]*?)\n?```/);
+    if (cb) html = cb[1].trim();
+    if (!html.toLowerCase().startsWith('<!doctype')) {
+      const idx = html.toLowerCase().indexOf('<!doctype');
+      if (idx > 0) html = html.slice(idx);
+    }
+
+    // 버전 번호 계산 (기존 fullVersions 기반)
+    const cur = getSession() || s;
+    const existingList = (cur.fullVersions && cur.fullVersions[opt.id]) || [];
+    const version = existingList.length + 1;
+    const fileName = `full-0${safeId}-v${version}.html`;
+    const filePath = path.join(fullsDir, fileName);
+    await fs.writeFile(filePath, html, 'utf-8');
+
+    log.info('BUILDING_FULLS', `html.ok id=${opt.id} v=${version} path=${fileName}`);
+    return { id: opt.id, name: opt.name, version, path: filePath };
+  });
+
+  const builtList = [];
+  for (const t of buildTasks) {
+    try {
+      builtList.push(await t);
+    } catch (e) {
+      log.error('BUILDING_FULLS', 'html.fail', e);
+    }
+  }
+  clearInterval(typingInterval);
+
+  if (builtList.length === 0) {
+    throw new Error('풀 HTML 전부 생성 실패');
+  }
+
+  // ── 3) 세션의 fullVersions 업데이트 ───────────────────
+  const curSession = getSession();
+  const newVersions = { ...(curSession?.fullVersions || {}) };
+  for (const b of builtList) {
+    if (!newVersions[b.id]) newVersions[b.id] = [];
+    newVersions[b.id].push({ v: b.version, path: b.path, builtAt: Date.now() });
+  }
+  updateSession({
+    fullVersions: newVersions,
+    state: STATES.AWAITING_FINAL_CHOICE,
+    slug: baseSlug,
+  });
+  log.state(STATES.BUILDING_FULLS, STATES.AWAITING_FINAL_CHOICE, `built=${builtList.length}`);
+
+  // ── 4) 파일 첨부 전송 ─────────────────────────────────
+  await sendMessage(
+    bots.artDirector,
+    `🎨 풀 완성 (${builtList.length}개). 첨부로 보내드려요 — 다 열어보시고 비교해주세요.\n\n— 아트`,
+  );
+  for (const b of builtList) {
+    try {
+      await sendDocument(bots.artDirector, b.path, `${b.id} ${b.name} (v${b.version})`);
+    } catch (e) {
+      log.error('BUILDING_FULLS', `sendDocument 실패 id=${b.id}`, e);
+    }
+  }
+
+  // ── 5) 편집장 체크포인트 ③ ──────────────────────────
+  const listLine = builtList.map((b) => `${b.id} ${b.name} — v${b.version}`).join('\n  ');
+  await sendMessage(
+    bots.editor,
+    `@주현대리 완성본 ${builtList.length}개 받으셨어요:
+  ${listLine}
+
+확인하고 응답 주세요:
+  • "**①로 컨펌**" / "**②로 가자**" → 최종 배포
+  • "**① 수정 [내용]**" → 해당 스타일만 새 버전 뽑기
+  • "**취소**" → 세션 종료
+
+— 편집장 (체크포인트 ③)`,
+  );
+}
+
+// ──────────────────────────────────────────────
+// (레거시) 3) 단일 옵션 선택 → 단일 HTML 생성 → 컨펌 요청
 // ──────────────────────────────────────────────
 export async function handleOptionChoice(choice) {
   const s = getSession();
@@ -760,6 +1065,66 @@ export async function handleFinalConfirm() {
 }
 
 // ──────────────────────────────────────────────
+// 4b) 새 플로우 전용 — 복수 완성본 중 선택한 버전을 Vercel에 최종 배포
+// ──────────────────────────────────────────────
+export async function handleFinalDeploy(finalId, finalVersion) {
+  const s = getSession();
+  if (!s) return;
+  const versions = s.fullVersions?.[finalId] || [];
+  if (versions.length === 0) {
+    await sendMessage(bots.editor, `⚠️ ${finalId} 완성본이 세션에 없어요. 처음부터 다시 할까요?\n\n— 편집장`);
+    return;
+  }
+  // 버전 미지정 → 최신
+  const target = finalVersion
+    ? versions.find((x) => x.v === finalVersion)
+    : versions[versions.length - 1];
+  if (!target) {
+    await sendMessage(bots.editor, `⚠️ ${finalId} v${finalVersion} 기록 없음. 있는 버전: ${versions.map((x) => 'v' + x.v).join(', ')}\n\n— 편집장`);
+    return;
+  }
+
+  updateSession({ state: STATES.DEPLOYING, finalChoice: { id: finalId, version: target.v } });
+  log.state(STATES.AWAITING_FINAL_CHOICE, STATES.DEPLOYING, `final=${finalId} v${target.v}`);
+
+  await sendMessage(bots.editor, `네, ${finalId} v${target.v} 로 올릴게요 @주현대리. Vercel 푸시 중...\n\n— 편집장`);
+  await typing(bots.editor);
+
+  try {
+    // final/index.html 로 복사해서 배포
+    const finalDir = path.join(path.dirname(path.dirname(target.path)), 'final');
+    await fs.mkdir(finalDir, { recursive: true });
+    const finalHtmlPath = path.join(finalDir, 'index.html');
+    await fs.copyFile(target.path, finalHtmlPath);
+
+    const projectName = `cardnews-${s.slug}`.slice(0, 50);
+    const { stdout } = await execAsync(
+      `vercel deploy --prod --yes --name ${projectName}`,
+      { cwd: finalDir, maxBuffer: 10 * 1024 * 1024 },
+    );
+    const urlMatch = stdout.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/);
+    const canonical = `https://${projectName}.vercel.app`;
+
+    if (urlMatch) {
+      updateSession({ deployUrl: canonical });
+      await sendMessage(
+        bots.editor,
+        `@주현대리 다 됐어요 🎉\n\n${canonical}\n\n(${finalId} ${target.v === versions[versions.length-1].v ? '최신' : 'v' + target.v} 버전) PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
+      );
+    } else {
+      await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n— 편집장`);
+    }
+  } catch (e) {
+    log.error('DEPLOY', 'handleFinalDeploy 실패', e);
+    await sendMessage(bots.editor, `❌ 배포 실패: ${String(e).slice(0, 300)}\n\n— 편집장`);
+    updateSession({ state: STATES.AWAITING_FINAL_CHOICE });
+    return;
+  }
+
+  resetSession();
+}
+
+// ──────────────────────────────────────────────
 // 5) 사용자 답변 라우팅 (현재 상태에 따라 처리)
 // ──────────────────────────────────────────────
 export async function handleUserText(text) {
@@ -813,12 +1178,12 @@ export async function handleUserText(text) {
         break;
       }
 
-      // 옵션 선택 있으면 진행 (ack + 작업 시작)
-      if (parsed.choice) {
+      // 스타일 선택 있으면 풀 HTML 제작 단계로 (복수 허용)
+      if (parsed.choices.length > 0) {
         if (parsed.notes.length > 0) {
           await sendMessage(
             bots.editor,
-            `📝 추가 요구 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n작업에 반영합니다.\n\n— 편집장`,
+            `📝 추가 요구 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n카피·아트 제작 시 반영합니다.\n\n— 편집장`,
           );
         }
         if (parsed.questions.length > 0) {
@@ -827,7 +1192,7 @@ export async function handleUserText(text) {
             `질문 주신 건 작업하면서 답변 드릴게요: ${parsed.questions.join(' / ')}\n\n— 편집장`,
           );
         }
-        await handleOptionChoice(parsed.choice);
+        await handleStyleChoices(parsed.choices);
       } else if (parsed.notes.length > 0) {
         // 옵션은 안 정했지만 추가 요구는 있음 → ack + 옵션 재요청
         await sendMessage(
@@ -846,6 +1211,67 @@ export async function handleUserText(text) {
           `@주현대리 ①/②/③ 중에서 선택해 주시거나 "편집장 추천대로" 같이 답해주세요. 추가 요구사항이 있으시면 같이 적어주셔도 돼요 (예: "①로 가되 색을 더 밝게").\n\n— 편집장`,
         );
       }
+      break;
+    }
+
+    case STATES.AWAITING_FINAL_CHOICE: {
+      const f = await parseFinalChoice(text, s);
+      log.info('FINAL_PARSE', `action=${f.action} finalId=${f.finalId} v=${f.finalVersion} reviseId=${f.reviseId}`);
+
+      if (f.action === 'cancel') {
+        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
+        resetSession();
+        break;
+      }
+
+      if (f.action === 'confirm' && f.finalId) {
+        await handleFinalDeploy(f.finalId, f.finalVersion);
+        break;
+      }
+
+      if (f.action === 'revise' && f.reviseId) {
+        // 해당 옵션만 새 버전 — 기존 styleChoices 에 없어도 추가해서 재빌드
+        if (f.notes.length > 0) {
+          const allNotes = [...(s.userNotes || []), ...f.notes];
+          updateSession({ userNotes: allNotes });
+        }
+        await sendMessage(
+          bots.editor,
+          `알겠어요 @주현대리. **${f.reviseId}** 만 새 버전 뽑을게요. ${f.notes.length > 0 ? '요구: ' + f.notes.join(' / ') : ''}\n기존 버전은 그대로 보관. 잠깐만요.\n\n— 편집장`,
+        );
+        await handleStyleChoices([f.reviseId]);
+        break;
+      }
+
+      if (f.action === 'rollback' && f.finalId && f.finalVersion) {
+        // 예전 버전 파일 재첨부
+        const list = s.fullVersions?.[f.finalId] || [];
+        const target = list.find((x) => x.v === f.finalVersion);
+        if (!target) {
+          await sendMessage(bots.editor, `⚠️ ${f.finalId} v${f.finalVersion} 기록이 없어요. 있는 버전: ${list.map((x) => 'v' + x.v).join(', ') || '없음'}\n\n— 편집장`);
+        } else {
+          await sendMessage(bots.artDirector, `📎 ${f.finalId} v${f.finalVersion} 다시 보내드려요.\n\n— 아트`);
+          await sendDocument(bots.artDirector, target.path, `${f.finalId} v${f.finalVersion} (재전송)`);
+        }
+        break;
+      }
+
+      if (f.action === 'question' || f.questions.length > 0) {
+        await answerQuestionsAndReprompt(f.questions.length > 0 ? f.questions : [text], s, 'final');
+        break;
+      }
+
+      // unclear — 사용법 다시 안내
+      await sendMessage(
+        bots.editor,
+        `@주현대리 어떻게 할까요?
+  • "**①로 컨펌**" → 최종 배포
+  • "**② 수정 [내용]**" → 새 버전 뽑기
+  • "**① v1 다시 봐**" → 예전 버전 재전송
+  • "**취소**"
+
+— 편집장`,
+      );
       break;
     }
 
@@ -898,8 +1324,8 @@ export async function handleUserText(text) {
 // (구) detectStartIntent 제거 — conversationalRoute 로 대체
 
 /**
- * 옵션별 미리보기 HTML 생성 + Vercel 배포 (병렬)
- * @returns {Promise<Array<{id, name, url}>>}
+ * 옵션별 미리보기 HTML 생성 (병렬) — 파일로만 저장, Vercel 배포 안 함
+ * @returns {Promise<Array<{id, name, path}>>}
  */
 async function generateOptionPreviews(s, options, audience) {
   const design = await loadCurrentDesign();
@@ -907,6 +1333,14 @@ async function generateOptionPreviews(s, options, audience) {
 
   // 본문 첫 부분만 미리보기용으로
   const sourceExcerpt = s.sourceText.slice(0, 2500);
+
+  // 이 카드뉴스의 전용 폴더 (slug 는 첫 호출 시 확보)
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const baseSlug = s.slug || `cardnews-${Date.now()}`;
+  const previewsDir = path.join(paths.outputDir, ym, baseSlug, 'previews');
+  await fs.mkdir(previewsDir, { recursive: true });
+  if (!s.slug) updateSession({ slug: baseSlug });
 
   const tasks = options.map(async (opt) => {
     const prompt = `미니 카드뉴스 미리보기(3슬라이드만)를 HTML 한 파일로 작성. 사용자가 이 스타일이 마음에 드는지 보고 결정할 수 있게.
@@ -932,13 +1366,15 @@ ${sourceExcerpt}
 - 정확히 3슬라이드: 표지 + 본문 핵심 1 + 본문 핵심 2
 - 위 스타일을 정확히 적용
 - 인터랙션 1~2개 동작 (설정한 인터랙션)
-- 모바일 반응형 (clamp() 폰트)
+- **PC 뷰**: 1280px 이상에서 여백·카드 그리드·타이포가 PC에 최적화
+- **모바일 뷰**: 375~480px 에서 clamp() 로 자동 reflow, 터치 스와이프 작동
 - 슬라이드 카운터 (1/3) + 진행바
-- HTML 한 파일. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
+- HTML 한 파일 자체완결 (CDN 외부 리소스만 참조 — file:// 에서도 작동)
+- 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
 
     const r = await callAgent(artSystem, prompt, {
       model: models.main,
-      maxTokens: 8000,
+      maxTokens: 12000,
     });
 
     let html = r.text.trim();
@@ -949,25 +1385,12 @@ ${sourceExcerpt}
       if (idx > 0) html = html.slice(idx);
     }
 
-    // 저장 + 배포
-    const now = new Date();
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : '3';
-    const slug = `preview-${Date.now()}-${safeId}`;
-    const outDir = path.join(paths.outputDir, ym, slug);
-    await fs.mkdir(outDir, { recursive: true });
-    const htmlPath = path.join(outDir, 'index.html');
-    await fs.writeFile(htmlPath, html, 'utf-8');
+    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+    const fileName = `preview-0${safeId}.html`;
+    const filePath = path.join(previewsDir, fileName);
+    await fs.writeFile(filePath, html, 'utf-8');
 
-    const projectName = `prev-${slug}`.slice(0, 50);
-    const { stdout } = await execAsync(
-      `vercel deploy --prod --yes --name ${projectName}`,
-      { cwd: outDir, maxBuffer: 10 * 1024 * 1024 },
-    );
-    const urlMatch = stdout.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/);
-    const url = urlMatch ? `https://${projectName}.vercel.app` : null;
-
-    return { id: opt.id, name: opt.name, url };
+    return { id: opt.id, name: opt.name, path: filePath };
   });
 
   return Promise.all(tasks);
