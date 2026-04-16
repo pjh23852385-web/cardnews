@@ -61,10 +61,11 @@ export const bots = {
 };
 
 // Claude 모델 매핑 (역할별)
+// 주현대리 요청 (2026-04-16): 카피 품질 최우선 → Sonnet 자리 전부 Opus 로 상향
 export const models = {
-  light: 'claude-haiku-4-5-20251001',       // 라우팅, 파싱 같은 가벼운 작업
-  main: 'claude-sonnet-4-6',                 // 카피 / 옵션 제안 등 일반
-  heavy: 'claude-opus-4-6',                  // HTML 생성 같은 헤비 작업
+  light: 'claude-haiku-4-5-20251001',       // 라우팅, 파싱 같은 가벼운 작업 (현재 미사용)
+  main: 'claude-opus-4-6',                   // 카피/파싱/편집장 발화/아트 옵션 — 전부 Opus
+  heavy: 'claude-opus-4-6',                  // HTML 생성 (원래 Opus)
 };
 
 export const POLL_INTERVAL_MS = 2000;         // 2초 주기 getUpdates
