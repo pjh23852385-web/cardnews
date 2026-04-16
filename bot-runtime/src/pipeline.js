@@ -268,13 +268,35 @@ JSON으로만 답하세요:
  * 반환: { action, finalId, finalVersion, reviseId, notes, questions, unrelated }
  *   action: 'confirm' | 'revise' | 'rollback' | 'cancel' | 'question' | 'unclear'
  */
-async function parseFinalChoice(text, session) {
+async function parseFinalChoice(text, session, phase = 'auto') {
   const idsList = (session?.fullVersions && Object.keys(session.fullVersions)) || [];
   const versionsLine = idsList
     .map((id) => `${id}: v${(session.fullVersions[id] || []).map((x) => x.v).join(',')}`)
     .join(' / ');
 
+  // phase 자동 판정: 세션 상태 기반
+  let resolvedPhase = phase;
+  if (phase === 'auto') {
+    resolvedPhase = session?.state === 'awaiting_copy_approval' ? 'copy' : 'final';
+  }
+
+  const confirmRulesCopy = `- "**confirm**" (현 단계 = 카피 승인 → 아트 옵션으로 진행):
+  긍정·승인 의사를 표현하는 **모든 자연어** 인식.
+  키워드 예: "카피 OK" / "OK" / "ok" / "오케이" / "승인" / "진행" / "좋아" / "좋네" / "좋다" /
+  "네" / "예" / "응" / "ㅇㅇ" / "가자" / "넘어가자" / "다음 단계" / "컨펌" / "통과" / "✅"
+  → action="confirm"
+  ⚠️ 카피 내용에 **구체적 수정 요구**(예: "3번 헤드 바꿔")가 같이 들어있으면 confirm 아님 → note_add.`;
+
+  const confirmRulesFinal = `- "**confirm**" (현 단계 = 최종 배포 → Vercel 푸시, **엄격하게**):
+  **명시적 배포 키워드만** 인정. 오직 아래 키워드 포함 시만:
+  컨펌 / 확정 / 배포 / 올려 / 올리자 / 푸시 / 공개 / 공유 / publish / deploy / ✅
+  예: "①로 컨펌" / "② 배포해" / "1번 확정" / "올려" / "공유해줘" / "② push"
+  → final_id + action="confirm"
+  ⚠️ "N번으로 하자" / "N번 좋아" / "N 선택" / "OK" 단독 등 모호 표현은 confirm 아님 → unclear (실수 방지).`;
+
   const system = `당신은 카드뉴스 작업 파서입니다. 완성본 여러 개를 보고 주현대리가 뭘 원하는지 분리.
+
+**현재 단계**: ${resolvedPhase === 'copy' ? '카피 승인 대기 (체크포인트 ①.5b) — 긍정 응답 모두 confirm 으로' : '최종 배포 대기 (체크포인트 ③) — 배포 키워드 엄격'}
 
 응답 형식 (JSON만):
 \`\`\`json
@@ -292,11 +314,7 @@ async function parseFinalChoice(text, session) {
 
 규칙 (엄격하게 적용):
 
-- "**confirm**" = **명시적 배포 명령만**. 아래 키워드 중 하나가 반드시 있어야 함:
-  컨펌 / 확정 / 배포 / 올려 / 올리자 / 푸시 / 공개 / 공유 / publish / deploy / confirm / OK(대문자) / ✅
-  예: "①로 컨펌" / "② 배포해" / "1번 확정" / "올려" / "공유해줘"
-  → final_id + action="confirm"
-  ⚠️ "N번으로 하자" / "N번 좋아" / "N 선택" 은 confirm 아님. action="unclear" 로.
+${resolvedPhase === 'copy' ? confirmRulesCopy : confirmRulesFinal}
 
 - "**note_add**" = 수정할 내용을 **메모로 누적만** 해달라 (아직 재생성 X). **기본값** — 수정 관련 메시지는 웬만하면 note_add.
   패턴:
