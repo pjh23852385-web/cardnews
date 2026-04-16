@@ -20,6 +20,18 @@ async function typing(bot) {
   return sendTyping(bot);
 }
 
+// LLM 응답에서 HTML 부분만 추출 (코드블록 벗기기 + DOCTYPE 잘라내기)
+function extractHtml(text) {
+  let html = (text || '').trim();
+  const cb = html.match(/```(?:html)?\s*\n?([\s\S]*?)\n?```/);
+  if (cb) html = cb[1].trim();
+  if (!html.toLowerCase().startsWith('<!doctype')) {
+    const idx = html.toLowerCase().indexOf('<!doctype');
+    if (idx > 0) html = html.slice(idx);
+  }
+  return html;
+}
+
 // ──────────────────────────────────────────────
 // 자연어 파서 — 추출·이해는 Sonnet(main), 단순 분기는 Haiku(light)
 // ──────────────────────────────────────────────
@@ -661,7 +673,17 @@ export async function handleStyleChoices(choices) {
   const label = choices.join('·');
   await sendMessage(
     bots.editor,
-    `좋아요 @주현대리, **${label}** 풀 제작 들어갑니다. 카피 1회 뽑고 스타일별로 병렬 생성 — 약 90초 걸려요.\n\n— 편집장`,
+    `좋아요 @주현대리, **${label}** 풀 제작 들어갑니다.
+
+순서:
+  1️⃣ 카피 작성 (공통)
+  2️⃣ 스타일별 HTML 병렬 생성
+  3️⃣ **아트 셀프 QA** — 문장 잘림·챕터 인디케이터·타이포 스케일·인터랙션 자체 점검
+  4️⃣ **편집장 최종 체크** — 이슈 있으면 아트 재수정 후 첨부
+
+4~6분 걸려요. 다 끝나면 완성본 첨부로 보내드릴게요.
+
+— 편집장`,
   );
   await sendMessage(
     bots.copywriter,
@@ -765,8 +787,12 @@ ${s.sourceText}
   const fullsDir = path.join(paths.outputDir, ym, baseSlug, 'fulls');
   await fs.mkdir(fullsDir, { recursive: true });
 
+  const editorSystemForQA = await loadAgentSystem('editor');
+
   const buildTasks = selectedOptions.map(async (opt) => {
     const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+
+    // ── A) HTML v0 생성 ───────────────────────────────
     const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 — 카피는 고정). 한 파일 완성본.
 
 ## 이 옵션의 스타일 정체성
@@ -793,22 +819,149 @@ ${JSON.stringify(copyJson, null, 2)}
 8. 인터랙션은 설정한 것 **반드시 작동** (CSS + JS 모두 구현)
 9. file:// 에서도 작동 (CDN 외부 리소스 OK)
 10. 마지막 슬라이드 CTA URL: ${s.notionUrl || '생략'}
-11. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
+
+## ⚠️ 품질 체크리스트 (이거 위반하면 안 됨)
+
+### A. 문장 잘림 금지
+- \`.swiper-slide\` 는 \`overflow-y:auto\` (내부 스크롤), \`overflow:hidden\` 절대 사용 금지
+- 긴 텍스트가 있는 슬라이드는 max-height:calc(100vh - 120px) + 내부 스크롤 허용
+- \`word-break:keep-all\` + \`overflow-wrap:break-word\` 한국어 단어 중간 끊김 방지
+- 카드·implication·본문 영역 \`min-width:0\` 지정 (flex overflow 방지)
+
+### B. 챕터 인디케이터 (필수)
+- 상단 바에 현재 챕터 이름을 **항상 표시** (슬라이드 카운터 옆이나 별도 영역)
+- 챕터 전환 시 제목이 페이드/슬라이드로 업데이트
+- 본문이 "챕터 1 / AI 패러다임" 같은 형태면 chapter 슬라이드의 \`data-chapter\` 속성 파싱해서 상단 고정
+- 챕터 없이 본문만이어도 "섹션 X / N" 같은 형태로 소속 영역 표시
+
+### C. 타이포 스케일 통일
+- **CSS 변수**로 타이포 정의: \`--fs-xs, --fs-sm, --fs-md, --fs-lg, --fs-xl, --fs-2xl\`
+- 각 슬라이드 내 h1/h2/h3/p/small 은 변수만 참조 (인라인 픽셀 금지)
+- clamp() 값 통일: 예) \`--fs-md:clamp(14px,1.6vw,15px)\`
+- 슬라이드마다 같은 역할 텍스트(헤드라인끼리, 본문끼리)는 같은 변수 사용
+
+### D. 인터랙션 실제 작동 확인
+- hover/카운터업/fade-in 은 CSS \`@keyframes\` 와 JS 이벤트 리스너 **둘 다** 구현
+- \`Swiper.on('slideChangeTransitionEnd')\` 에서 활성 슬라이드 애니메이션 트리거
+- data-count 속성 있으면 IntersectionObserver 또는 slideChange 로 반드시 카운트업
+
+12. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
 
     log.info('BUILDING_FULLS', `html.start id=${opt.id} name="${opt.name}"`);
     const r = await callAgent(artSystem, htmlPrompt, {
       model: models.heavy,
       maxTokens: 16000,
     });
-    let html = r.text.trim();
-    const cb = html.match(/```(?:html)?\s*\n?([\s\S]*?)\n?```/);
-    if (cb) html = cb[1].trim();
-    if (!html.toLowerCase().startsWith('<!doctype')) {
-      const idx = html.toLowerCase().indexOf('<!doctype');
-      if (idx > 0) html = html.slice(idx);
+    let html = extractHtml(r.text);
+
+    // ── B) 아트 셀프 QA (v0 → v0.1) ───────────────────
+    log.info('BUILDING_FULLS', `qa.art.start id=${opt.id}`);
+    const artQAPrompt = `방금 네가 만든 HTML이야. 아트 관점에서 체크해서 **수정된 HTML 한 파일** 반환해.
+
+## 체크리스트 (하나씩 검사 — 발견되면 HTML 직접 고쳐)
+1. **문장 잘림**: \`.swiper-slide\` 에 overflow:hidden 있으면 overflow-y:auto 로. word-break:keep-all 누락 슬라이드 있는지. 긴 텍스트가 뷰포트 아래로 짤리면 max-height + 내부 스크롤로 해결.
+2. **챕터 인디케이터**: 상단 바에 현재 챕터명 계속 보이는지. 슬라이드 전환 시 챕터명 업데이트 JS 있는지. 없으면 추가.
+3. **타이포 스케일**: 전체 글자 크기 용도별(h1/h2/h3/p/small)로 통일돼 있나. 슬라이드마다 제각각이면 CSS 변수로 정리.
+4. **인터랙션 작동**: 카운터업 IntersectionObserver / slideChange 이벤트 구현됐나. hover CSS 없으면 추가. fade-in keyframe 정의됐나.
+
+## 기존 HTML
+${html.slice(0, 15000)}
+
+## 출력
+수정된 완성본 HTML 한 파일. <!DOCTYPE 부터 </html>. 코드블록 X. 설명 X.
+수정할 게 없으면 원본 그대로 반환해도 됨.`;
+
+    try {
+      const qaRes = await callAgent(artSystem, artQAPrompt, {
+        model: models.heavy,
+        maxTokens: 16000,
+      });
+      const qaHtml = extractHtml(qaRes.text);
+      if (qaHtml && qaHtml.toLowerCase().includes('<!doctype') && qaHtml.length > 1000) {
+        html = qaHtml;
+        log.info('BUILDING_FULLS', `qa.art.ok id=${opt.id} bytes=${qaHtml.length}`);
+      } else {
+        log.warn('BUILDING_FULLS', `qa.art.skip id=${opt.id} invalid_output`);
+      }
+    } catch (e) {
+      log.warn('BUILDING_FULLS', `qa.art.fail id=${opt.id} ${e.message}`);
+      // QA 실패해도 원본은 사용
     }
 
-    // 버전 번호 계산 (기존 fullVersions 기반)
+    // ── C) 편집장 체크 (approve | issues) ─────────────
+    log.info('BUILDING_FULLS', `qa.editor.start id=${opt.id}`);
+    const editorCheckPrompt = `아트가 완성한 HTML 검수. 배포 가능한지 아트 관점 QA 체크 후 판단.
+
+## 카피 (기준)
+${JSON.stringify(copyJson, null, 2).slice(0, 3000)}
+
+## 완성된 HTML
+${html.slice(0, 15000)}
+
+## 체크 기준
+- 카피의 모든 슬라이드가 HTML 에 반영됐나 (빠진 슬라이드 없는지)
+- 문장 잘림 방지 CSS 가 적용됐나 (overflow, word-break)
+- 챕터 인디케이터가 상단에 고정돼 있고 슬라이드마다 업데이트되나
+- 타이포가 CSS 변수로 통일돼 있나
+- 인터랙션(카운터업/fade/hover)이 CSS·JS 둘 다 구현됐나
+- HTML 파싱 에러 없나 (닫히지 않은 태그 등)
+
+## 응답 (JSON만)
+\`\`\`json
+{
+  "approve": true,
+  "issues": ["구체적 이슈 리스트 (approve=false 일 때)"]
+}
+\`\`\`
+approve=true 면 issues=[] 로.`;
+
+    let editorApproved = true;
+    let editorIssues = [];
+    try {
+      const checkRes = await callAgent(editorSystemForQA, editorCheckPrompt, {
+        model: models.main,
+        maxTokens: 800,
+        json: true,
+      });
+      if (checkRes.json) {
+        editorApproved = !!checkRes.json.approve;
+        editorIssues = Array.isArray(checkRes.json.issues) ? checkRes.json.issues.filter(Boolean) : [];
+      }
+      log.info('BUILDING_FULLS', `qa.editor.ok id=${opt.id} approve=${editorApproved} issues=${editorIssues.length}`);
+    } catch (e) {
+      log.warn('BUILDING_FULLS', `qa.editor.fail id=${opt.id} ${e.message}`);
+    }
+
+    // ── D) 편집장이 issues 플래그했으면 아트 재수정 (1회) ──
+    if (!editorApproved && editorIssues.length > 0) {
+      log.info('BUILDING_FULLS', `qa.refix.start id=${opt.id} issues=${editorIssues.length}`);
+      const refixPrompt = `편집장이 네 HTML 에서 아래 이슈 발견. 수정한 완성본 HTML 반환해.
+
+## 편집장 지적
+${editorIssues.map((i) => `- ${i}`).join('\n')}
+
+## 현재 HTML
+${html.slice(0, 15000)}
+
+## 출력
+수정된 완성본 HTML 한 파일. <!DOCTYPE 부터 </html>. 코드블록 X. 설명 X.`;
+
+      try {
+        const refixRes = await callAgent(artSystem, refixPrompt, {
+          model: models.heavy,
+          maxTokens: 16000,
+        });
+        const refixHtml = extractHtml(refixRes.text);
+        if (refixHtml && refixHtml.toLowerCase().includes('<!doctype') && refixHtml.length > 1000) {
+          html = refixHtml;
+          log.info('BUILDING_FULLS', `qa.refix.ok id=${opt.id} bytes=${refixHtml.length}`);
+        }
+      } catch (e) {
+        log.warn('BUILDING_FULLS', `qa.refix.fail id=${opt.id} ${e.message}`);
+      }
+    }
+
+    // ── E) 버전 저장 ──────────────────────────────────
     const cur = getSession() || s;
     const existingList = (cur.fullVersions && cur.fullVersions[opt.id]) || [];
     const version = existingList.length + 1;
@@ -817,7 +970,7 @@ ${JSON.stringify(copyJson, null, 2)}
     await fs.writeFile(filePath, html, 'utf-8');
 
     log.info('BUILDING_FULLS', `html.ok id=${opt.id} v=${version} path=${fileName}`);
-    return { id: opt.id, name: opt.name, version, path: filePath };
+    return { id: opt.id, name: opt.name, version, path: filePath, editorApproved, editorIssues };
   });
 
   const builtList = [];
@@ -849,9 +1002,12 @@ ${JSON.stringify(copyJson, null, 2)}
   log.state(STATES.BUILDING_FULLS, STATES.AWAITING_FINAL_CHOICE, `built=${builtList.length}`);
 
   // ── 4) 파일 첨부 전송 ─────────────────────────────────
+  const qaSummary = builtList
+    .map((b) => `${b.id} ${b.editorApproved ? '✅' : '⚠️ ' + (b.editorIssues || []).length + '건 수정'}`)
+    .join(' · ');
   await sendMessage(
     bots.artDirector,
-    `🎨 풀 완성 (${builtList.length}개). 첨부로 보내드려요 — 다 열어보시고 비교해주세요.\n\n— 아트`,
+    `🎨 풀 완성 (${builtList.length}개). QA: ${qaSummary}\n첨부로 보내드려요 — 다 열어보시고 비교해주세요.\n\n— 아트`,
   );
   for (const b of builtList) {
     try {
