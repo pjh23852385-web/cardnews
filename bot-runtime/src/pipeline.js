@@ -339,6 +339,12 @@ ${resolvedPhase === 'copy' ? confirmRulesCopy : confirmRulesFinal}
 - "**select_variant**" = 카피 A/B(Opus/GPT) 중 선택. 오직 카피 검토 단계에서만 의미 있음.
   • "A" / "Opus" / "A로 가자" / "클로드" / "왼쪽" / "첫번째" → action="select_variant", variant="opus"
   • "B" / "GPT" / "B로" / "챗지피티" / "오른쪽" / "두번째" → action="select_variant", variant="gpt"
+  • **합본 지시 (베이스 명시)**: "베이스: Opus", "A 베이스", "Opus 기반으로",
+    "A 유지하고 B의 X 추가" 같이 한쪽을 베이스로 명시
+    → action="select_variant", variant="opus" or "gpt" (베이스로 명시된 쪽),
+       notes=[사용자 메시지 전체를 통째로 넣기] (라우팅이 자동으로 합본 재생성 실행)
+  • "A·B 합쳐서", "두 개 섞어서" 만 있고 베이스 명시 없으면
+    → action="unclear" (A/B 중 하나 고르라 안내)
 
 - "**cancel**" = "취소" / "리셋" / "처음부터"
 
@@ -1662,8 +1668,65 @@ export async function handleUserText(text) {
             break;
           }
           updateSession({ copyDraft: chosen, chosenProvider: f.variant });
-          log.info('COPY_SELECT', `chosen=${f.variant} slides=${chosen.slides.length}`);
+          log.info('COPY_SELECT', `chosen=${f.variant} slides=${chosen.slides.length} withMergeNotes=${f.notes.length > 0}`);
           const label = f.variant === 'opus' ? 'Claude Opus' : 'GPT-5';
+
+          // 합본 지시가 함께 들어온 경우 — 바로 apply_notes 로 돌입 (v2 재생성)
+          if (f.notes.length > 0) {
+            const longMerge = f.notes.filter((n) => n.length >= 200);
+            const shortNotes = f.notes.filter((n) => n.length < 200);
+            const allShort = shortNotes.length > 0 ? shortNotes : [];
+            const mergeText = longMerge.length > 0 ? longMerge.join('\n\n---\n\n') : null;
+            const joined = f.notes.join(' / ');
+
+            await sendMessage(
+              bots.editor,
+              `✅ **${label}** 베이스로 받았어요 @주현대리. 합본 지시도 함께 오셨네요:
+> ${joined.slice(0, 200)}${joined.length > 200 ? ' …' : ''}
+
+A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRevCount || 1) + 1}** 뽑을게요. 30~60초 걸려요.
+
+— 편집장 (체크포인트 ①.5b)`,
+            );
+
+            try {
+              const cur = getSession();
+              const regenerate = cur.chosenProvider === 'opus' ? _generateCopyJson : _generateCopyJsonOpenAI;
+              const refOpts = {
+                referenceDrafts: { opus: cur.copyDrafts?.opus, gpt: cur.copyDrafts?.gpt },
+                userMergeText: mergeText,
+              };
+              // userNotes 에 짧은 지시 누적 (긴 지시는 mergeText 로 들어감)
+              if (allShort.length > 0) {
+                updateSession({ userNotes: [...(cur.userNotes || []), ...allShort] });
+              }
+              const newCopy = await regenerate(getSession(), refOpts);
+              const nextVer = (cur.copyRevCount || 1) + 1;
+              const vLabel = `v${nextVer}`;
+
+              const now3 = new Date();
+              const ym3 = `${now3.getFullYear()}-${String(now3.getMonth() + 1).padStart(2, '0')}`;
+              const baseSlug3 = cur.slug || `cardnews-${Date.now()}`;
+              const copyDir3 = path.join(paths.outputDir, ym3, baseSlug3, 'copy');
+              await fs.mkdir(copyDir3, { recursive: true });
+              await fs.writeFile(path.join(copyDir3, `copy-${vLabel}-${cur.chosenProvider}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
+
+              updateSession({ copyDraft: newCopy, copyRevCount: nextVer });
+              log.info('COPY_SELECT_AND_APPLY', `ok ${vLabel} provider=${cur.chosenProvider} slides=${newCopy.slides.length} merge=${!!mergeText}`);
+
+              await _presentCopyDraft(newCopy, vLabel);
+              await sendMessage(
+                bots.editor,
+                `@주현대리 ${label} 합본 카피 ${vLabel} 나왔어요. 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+              );
+            } catch (e) {
+              log.error('COPY_SELECT_AND_APPLY', '재생성 실패', e);
+              await sendMessage(bots.editor, `⚠️ 합본 카피 생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주시거나 다른 지시 주세요.\n\n— 편집장`);
+            }
+            break;
+          }
+
+          // 합본 지시 없이 단순 선택
           await sendMessage(
             bots.editor,
             `✅ **${label}** 버전 선택 받았어요 @주현대리.
@@ -1674,14 +1737,11 @@ export async function handleUserText(text) {
   • "3번 슬라이드 헤드 더 강하게"
   • "데이터 파트 축소"
 
-🔀 **합본·발췌 텍스트 투입** (가장 유연 — A·B 다 참고 + 글자 그대로 존중)
-  긴 텍스트(200자 이상) 붙여넣으면 자동으로 "합본 지시"로 인식:
-  예) "A의 표지 헤드 '모두 오늘 켜면 내일 쓸 수 있다' 쓰고
-       B의 시사점 스타일로 통일, 3번 슬라이드는 [여기 직접 쓴 본문...]
-       시사점 방향은 HR 임원 관점에서 '이번 분기 안에 뭘 해야 하나'로 다시 보완"
+🔀 **합본·발췌 텍스트 투입** (긴 텍스트 붙여넣기 — A·B 다 참고 + 글자 그대로 존중)
+  예) "A의 표지 헤드 쓰고, B의 시사점 스타일로 통일, 3번 슬라이드는 [여기 직접 쓴 본문...]"
   → LLM이 A·B 원본 + 주신 텍스트 + 오디언스 맥락 모두 반영해 v2 생성
 
-🔄 다 쌓고 나서 "**반영해**" / "**v2 뽑아줘**" — 그때 재생성
+🔄 다 쌓고 "**반영해**" / "**v2 뽑아줘**" — 그때 재생성
 🚀 만족이면 "**카피 OK**" — 아트 옵션 단계로 넘어갈게요.
 
 — 편집장 (체크포인트 ①.5b)`,
@@ -1694,6 +1754,7 @@ export async function handleUserText(text) {
           `먼저 **A / B 중 하나** 골라주세요 @주현대리.
   • "**A**" 또는 "**Opus**" → Claude Opus 버전으로
   • "**B**" 또는 "**GPT**" → GPT-5 버전으로
+  • 또는 **"A 베이스로 B의 X 추가"** 처럼 합본 지시 함께 주셔도 OK (바로 v2 생성)
 
 — 편집장 (체크포인트 ①.5a)`,
         );
