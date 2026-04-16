@@ -93,6 +93,7 @@ export function newSession(initial = {}) {
     copyDraft: null,              // 카피라이터가 뽑은 공통 카피 (JSON)
     fullVersions: {},             // { '①': [{v:1,path,builtAt}], '②': [{v:1,...},{v:2,...}], ... }
     finalChoice: null,            // { id:'①', version:1 } — ⑦ 단계에서 배포할 대상
+    pendingNotes: {},             // { '①': ['1페이지 헤드라인 X 고쳐', ...], ... } — apply_notes 대기 중 수정 지시 누적
     ...initial,
   };
   _saveToDisk();

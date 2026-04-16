@@ -70,7 +70,7 @@ async function parseFinalChoice(text, session) {
 응답 형식 (JSON만):
 \`\`\`json
 {
-  "action": "confirm|revise|rollback|cancel|question|unclear",
+  "action": "confirm|note_add|apply_notes|rollback|cancel|question|unclear",
   "final_id": "①|②|③|null",
   "final_version": 2,
   "revise_id": "①|②|③|null",
@@ -80,15 +80,35 @@ async function parseFinalChoice(text, session) {
 }
 \`\`\`
 
-규칙:
-- "**confirm**" = 이걸로 최종 배포. 예: "①로 컨펌" / "②로 가자" / "2번 배포" / "확정 ①" → final_id="①/②/③"
-  - "최신 버전" 명시 없으면 final_version 은 null (= 최신 버전 자동 사용)
-  - "① v1으로 가자" → final_version=1
-- "**revise**" = 특정 옵션 수정해서 새 버전 뽑아줘. 예: "① 수정 3번슬라이드 약해" / "② 색 밝게 다시" → revise_id + notes
-- "**rollback**" = 예전 버전으로 돌아가. 예: "① v1 다시 봐" → final_id="①", final_version=1, action="rollback" (재배포 아님)
+규칙 (엄격하게 적용):
+
+- "**confirm**" = **명시적 배포 명령만**. 아래 키워드 중 하나가 반드시 있어야 함:
+  컨펌 / 확정 / 배포 / 올려 / 올리자 / 푸시 / 공개 / 공유 / publish / deploy / confirm / OK(대문자) / ✅
+  예: "①로 컨펌" / "② 배포해" / "1번 확정" / "올려" / "공유해줘"
+  → final_id + action="confirm"
+  ⚠️ "N번으로 하자" / "N번 좋아" / "N 선택" 은 confirm 아님. action="unclear" 로.
+
+- "**note_add**" = 수정할 내용을 **메모로 누적만** 해달라 (아직 재생성 X). **기본값** — 수정 관련 메시지는 웬만하면 note_add.
+  패턴:
+  • "① 1페이지 문장 잘림 고쳐" / "② 3번 슬라이드 카드 간격 넓혀" / "텍스트 더 크게"
+  • "**X 페이지 ~ 수정**" / "**Y가 이상함/약함/깨짐**"
+  • "**헤드라인 바꿔**" / "**카피 더 강하게**" / "**이미지 빼**"
+  • "**수정하고 싶은 게 있어**" — 대상 명시 없어도 note_add (notes 에 원문 담기)
+  → revise_id (언급된 것) + notes (수정 내용들 — 한 메시지에 여러 건이면 다 추출)
+  예: "① 1페이지 X 고쳐 3페이지 카드 간격" → revise_id="①", notes=["1페이지 X 고쳐","3페이지 카드 간격 넓혀"]
+
+- "**apply_notes**" = 누적된 메모를 **이제 반영해서 새 버전** 만들자. 아래 명시적 트리거 필요:
+  반영 / 다시 만들어 / 다시 뽑아 / v2 / 새 버전 / 재생성 / 반영해서 / 이제 적용
+  예: "① 반영해" / "② 이제 v2 뽑아" / "다시 만들어줘"
+  → revise_id + action="apply_notes"
+
+- "**rollback**" = 예전 버전 재전송. 예: "① v1 다시 봐" → final_id + final_version + action="rollback"
+
 - "**cancel**" = "취소" / "리셋" / "처음부터"
-- "**question**" = 그냥 질문. "이거 한국어로 나와?" 등
-- 모호하면 unclear`;
+
+- "**question**" = 순수 질문 (수정·배포 의도 없음). "이거 한국어로 나와?" / "폰트 뭐 썼어?"
+
+- **모호하면 unclear** (특히 "N번으로 하자" 같은 애매한 표현)`;
 
   const prompt = `현재 완성본 (${idsList.length}개 스타일):
 ${versionsLine || '(없음)'}
@@ -100,7 +120,7 @@ ${versionsLine || '(없음)'}
     if (json) {
       const validIds = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
       return {
-        action: ['confirm', 'revise', 'rollback', 'cancel', 'question', 'unclear'].includes(json.action) ? json.action : 'unclear',
+        action: ['confirm', 'note_add', 'apply_notes', 'rollback', 'cancel', 'question', 'unclear'].includes(json.action) ? json.action : 'unclear',
         finalId: validIds.includes(json.final_id) ? json.final_id : null,
         finalVersion: Number.isInteger(json.final_version) ? json.final_version : null,
         reviseId: validIds.includes(json.revise_id) ? json.revise_id : null,
@@ -841,17 +861,32 @@ ${JSON.stringify(copyJson, null, 2)}
     }
   }
 
-  // ── 5) 편집장 체크포인트 ③ ──────────────────────────
+  // ── 5) 편집장 체크포인트 ③ — 검수 유도 ───────────────
   const listLine = builtList.map((b) => `${b.id} ${b.name} — v${b.version}`).join('\n  ');
   await sendMessage(
     bots.editor,
-    `@주현대리 완성본 ${builtList.length}개 받으셨어요:
+    `@주현대리 완성본 ${builtList.length}개 첨부 드렸어요:
   ${listLine}
 
-확인하고 응답 주세요:
-  • "**①로 컨펌**" / "**②로 가자**" → 최종 배포
-  • "**① 수정 [내용]**" → 해당 스타일만 새 버전 뽑기
-  • "**취소**" → 세션 종료
+🔍 **배포 전 꼭 체크** — 하나씩 열어서:
+  ✓ 텍스트 (문장 잘림 / 오타 / 어색한 표현)
+  ✓ 레이아웃 (여백 / 카드 배치 / 슬라이드 순서)
+  ✓ 인터랙션 (hover / 카운터업 / 슬라이드 전환)
+  ✓ PC + 모바일 둘 다
+
+✏️ **수정은 장표별로 자유롭게 쌓아두세요** (재생성 안 함):
+  • "**① 1페이지 헤드라인 문장 잘림 고쳐**"
+  • "**3페이지 카드 간격 넓혀**"
+  • "**5페이지 이미지 빼고 텍스트만**"
+  → 한 건씩 보내도 되고, 한 메시지에 여러 건 몰아서 보내도 됨
+  → 메모로만 쌓여요. 시간·토큰 안 씀.
+
+🔄 **다 끝나면 반영** (그때 새 버전 만들어요, ~2분):
+  • "**① 반영해**" / "**v2 뽑아줘**" / "**다시 만들어**"
+
+🚀 **최종 배포** (꼭 이 키워드로):
+  • "**① 컨펌**" / "**② 배포해**" / "**1번 확정 올려**" / "**② push**"
+  ⚠️ 그냥 "1번 좋아" / "1번으로 하자" 만으로는 배포 안 돼요 (실수 방지)
 
 — 편집장 (체크포인트 ③)`,
   );
@@ -1229,17 +1264,61 @@ export async function handleUserText(text) {
         break;
       }
 
-      if (f.action === 'revise' && f.reviseId) {
-        // 해당 옵션만 새 버전 — 기존 styleChoices 에 없어도 추가해서 재빌드
-        if (f.notes.length > 0) {
-          const allNotes = [...(s.userNotes || []), ...f.notes];
-          updateSession({ userNotes: allNotes });
-        }
+      // 수정 메모 누적 (재생성 X) — 장표별로 자유롭게 쌓기
+      if (f.action === 'note_add') {
+        const targetId = f.reviseId || '공통';
+        const pending = { ...(s.pendingNotes || {}) };
+        if (!pending[targetId]) pending[targetId] = [];
+        if (f.notes.length > 0) pending[targetId].push(...f.notes);
+        updateSession({ pendingNotes: pending });
+
+        const totalCount = Object.values(pending).reduce((sum, arr) => sum + arr.length, 0);
+        const summary = Object.entries(pending)
+          .map(([id, arr]) => `  ${id === '공통' ? '공통' : id} (${arr.length}건): ${arr.slice(-3).join(' / ')}${arr.length > 3 ? ' …' : ''}`)
+          .join('\n');
+
         await sendMessage(
           bots.editor,
-          `알겠어요 @주현대리. **${f.reviseId}** 만 새 버전 뽑을게요. ${f.notes.length > 0 ? '요구: ' + f.notes.join(' / ') : ''}\n기존 버전은 그대로 보관. 잠깐만요.\n\n— 편집장`,
+          `📝 메모했어요. 누적 **${totalCount}건**:
+${summary}
+
+계속 주세요. 다 끝나면 "**${targetId !== '공통' ? targetId + ' ' : ''}반영해**" / "**v2 뽑아**" 하시면 한번에 반영해서 새 버전 만들게요.
+
+— 편집장`,
         );
-        await handleStyleChoices([f.reviseId]);
+        break;
+      }
+
+      // 누적된 메모 반영해서 재빌드
+      if (f.action === 'apply_notes') {
+        const pending = s.pendingNotes || {};
+        const targetId = f.reviseId || Object.keys(pending).find((k) => k !== '공통') || '공통';
+        const relevantNotes = [
+          ...(pending[targetId] || []),
+          ...(targetId !== '공통' ? (pending['공통'] || []) : []),
+        ];
+        if (relevantNotes.length === 0) {
+          await sendMessage(
+            bots.editor,
+            `누적된 수정 메모가 없어요 @주현대리. "① 1페이지 X 고쳐" 같이 구체적으로 주시면 쌓아뒀다가 반영해요.\n\n— 편집장`,
+          );
+          break;
+        }
+        // userNotes 에 합치고 pendingNotes 는 해당 id 만 비우기
+        const allNotes = [...(s.userNotes || []), ...relevantNotes];
+        const nextPending = { ...pending };
+        delete nextPending[targetId];
+        if (targetId !== '공통') delete nextPending['공통'];
+        updateSession({ userNotes: allNotes, pendingNotes: nextPending });
+
+        await sendMessage(
+          bots.editor,
+          `알겠어요 @주현대리. **${targetId}** 에 누적된 **${relevantNotes.length}건** 반영해서 새 버전 만들게요:
+${relevantNotes.map((n) => `  • ${n}`).join('\n')}
+
+기존 버전은 그대로 보관. 2분 내외.\n\n— 편집장`,
+        );
+        await handleStyleChoices([targetId === '공통' ? (s.styleChoices?.[0] || '①') : targetId]);
         break;
       }
 
