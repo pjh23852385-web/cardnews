@@ -57,18 +57,49 @@ function formatCopyForReview(copyJson, versionLabel = 'v1') {
 }
 
 // 공용 프롬프트 빌더 — Opus/GPT 공통
-async function _buildCopyPrompt(session) {
+// opts.referenceDrafts: { opus, gpt } — A·B 참고본 (v2+ 재생성 시)
+// opts.userMergeText: 사용자가 A·B 조합·수정해 던진 자유 텍스트 (최우선)
+async function _buildCopyPrompt(session, opts = {}) {
   const system = await loadAgentSystem('copywriter');
   const notesBlock = (session.userNotes && session.userNotes.length > 0)
     ? `\n## 🌟 사용자 요구사항 (반드시 반영)\n${session.userNotes.map((n) => `- ${n}`).join('\n')}\n`
     : '';
+
+  // A/B 참고본 + 사용자 머지 텍스트 블록
+  let referenceBlock = '';
+  if (opts.referenceDrafts?.opus || opts.referenceDrafts?.gpt) {
+    referenceBlock += `\n## 📚 참고본 (지난 카피 버전 — 무엇을 유지·변경할지 판단 근거)\n`;
+    if (opts.referenceDrafts.opus) {
+      referenceBlock += `\n### 버전 A (Claude Opus)\n${JSON.stringify(opts.referenceDrafts.opus, null, 2)}\n`;
+    }
+    if (opts.referenceDrafts.gpt) {
+      referenceBlock += `\n### 버전 B (GPT-5)\n${JSON.stringify(opts.referenceDrafts.gpt, null, 2)}\n`;
+    }
+  }
+  if (opts.userMergeText) {
+    referenceBlock += `\n## 🎯 사용자가 직접 만든 합본·수정 지시 (**최우선 존중 — 글자 그대로 쓸 수 있으면 그대로**)
+사용자가 A·B 두 버전을 직접 보고, 본인 판단으로 발췌·조합·수정한 텍스트:
+
+\`\`\`
+${opts.userMergeText}
+\`\`\`
+
+**처리 원칙**:
+1. 사용자가 문장 형태로 써준 부분 → 그 문장을 **그대로** 해당 슬라이드에 배치. 변형·각색 금지.
+2. 사용자가 "A꺼 쓰되 시사점만 B 스타일로" 같은 **지시형**으로 쓴 부분 → 그 지시 따라 A·B에서 가져와 조합.
+3. 사용자가 "시사점을 다른 방향으로 다시 보완" 같이 **방향 지시만** 한 부분 → 오디언스·핵심철학 기준으로 새로 써서 채움.
+4. 빠진 슬라이드(cover/chapter/cta 등) → A·B 참고해서 톤 맞춰 메움.
+5. 사용자 의도와 오디언스 맥락이 충돌하면 → 사용자 의도 우선.
+`;
+  }
+
   const user = `카드뉴스 카피를 슬라이드별 JSON으로 뽑으세요. 스타일과 무관한 카피 공통본.
 
 ## 컨텍스트
 - 오디언스: ${session.audience}
-- 노션 URL: ${session.notionUrl || '없음'}${notesBlock}
+- 노션 URL: ${session.notionUrl || '없음'}${notesBlock}${referenceBlock}
 
-## 본문
+## 본문 (원본 소스)
 ${session.sourceText}
 
 ## 핵심 철학 (CLAUDE.md)
@@ -99,8 +130,9 @@ ${session.sourceText}
 }
 
 // 공용 카피 생성 (Claude Opus) — _runStyleBuild 와 handleAudienceAnswer 양쪽에서 사용
-async function _generateCopyJson(session) {
-  const { system, user } = await _buildCopyPrompt(session);
+// opts: { referenceDrafts, userMergeText } — v2+ 재생성 시 A/B 참고본 + 사용자 머지 텍스트 주입
+async function _generateCopyJson(session, opts = {}) {
+  const { system, user } = await _buildCopyPrompt(session, opts);
   const res = await callAgent(system, user, {
     model: models.main,
     maxTokens: 8000,
@@ -112,9 +144,9 @@ async function _generateCopyJson(session) {
   return res.json;
 }
 
-// 카피 생성 (OpenAI GPT-5) — A/B 비교용
-async function _generateCopyJsonOpenAI(session) {
-  const { system, user } = await _buildCopyPrompt(session);
+// 카피 생성 (OpenAI GPT-5) — A/B 비교용 또는 재생성용
+async function _generateCopyJsonOpenAI(session, opts = {}) {
+  const { system, user } = await _buildCopyPrompt(session, opts);
   const res = await callOpenAI(system, user, {
     model: models.gpt,
     maxTokens: 8000,
@@ -1594,7 +1626,21 @@ export async function handleUserText(text) {
             bots.editor,
             `✅ **${label}** 버전 선택 받았어요 @주현대리.
 
-이제 수정 메모 쌓아두시고, 만족이면 "**카피 OK**" — 아트 옵션 단계로 넘어갈게요.
+이제 다음 중 자유롭게:
+
+✏️ **짧은 수정 지시** (쌓였다가 "반영해" 시 v2)
+  • "3번 슬라이드 헤드 더 강하게"
+  • "데이터 파트 축소"
+
+🔀 **합본·발췌 텍스트 투입** (가장 유연 — A·B 다 참고 + 글자 그대로 존중)
+  긴 텍스트(200자 이상) 붙여넣으면 자동으로 "합본 지시"로 인식:
+  예) "A의 표지 헤드 '모두 오늘 켜면 내일 쓸 수 있다' 쓰고
+       B의 시사점 스타일로 통일, 3번 슬라이드는 [여기 직접 쓴 본문...]
+       시사점 방향은 HR 임원 관점에서 '이번 분기 안에 뭘 해야 하나'로 다시 보완"
+  → LLM이 A·B 원본 + 주신 텍스트 + 오디언스 맥락 모두 반영해 v2 생성
+
+🔄 다 쌓고 나서 "**반영해**" / "**v2 뽑아줘**" — 그때 재생성
+🚀 만족이면 "**카피 OK**" — 아트 옵션 단계로 넘어갈게요.
 
 — 편집장 (체크포인트 ①.5b)`,
           );
@@ -1670,18 +1716,36 @@ export async function handleUserText(text) {
         updateSession({ userNotes: allNotes, pendingNotes: nextPending });
 
         const providerLabel = s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5';
+
+        // 사용자 머지 텍스트 감지: 긴 단일 메모(>=200자)가 있으면 "합본·발췌" 의도로 판단
+        const longNotes = copyNotes.filter((n) => n.length >= 200);
+        const hasUserMerge = longNotes.length > 0;
+        const userMergeText = hasUserMerge ? longNotes.join('\n\n---\n\n') : null;
+        const shortNotes = copyNotes.filter((n) => n.length < 200);
+
+        const ctxLine = hasUserMerge
+          ? `🎯 사용자 합본·발췌 텍스트 ${longNotes.length}건 (A·B 참고본 함께 투입) + 짧은 지시 ${shortNotes.length}건`
+          : `${copyNotes.length}건 지시 반영`;
+
         await sendMessage(
           bots.editor,
-          `알겠어요 @주현대리. **${copyNotes.length}건** 반영해서 ${providerLabel} 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
-${copyNotes.map((n) => `  • ${n}`).join('\n')}
+          `알겠어요 @주현대리. ${ctxLine} 반영해서 ${providerLabel} 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
+${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`).join('\n')}
 
 30~60초 걸려요.\n\n— 편집장`,
         );
 
         try {
-          // 선택된 프로바이더로만 재생성
+          // 선택된 프로바이더로만 재생성 — A·B 참고본 + 사용자 머지 텍스트 주입
           const regenerate = s.chosenProvider === 'opus' ? _generateCopyJson : _generateCopyJsonOpenAI;
-          const newCopy = await regenerate(getSession());
+          const refOpts = {
+            referenceDrafts: {
+              opus: s.copyDrafts?.opus || null,
+              gpt: s.copyDrafts?.gpt || null,
+            },
+            userMergeText,
+          };
+          const newCopy = await regenerate(getSession(), refOpts);
           const nextVer = (s.copyRevCount || 1) + 1;
           const vLabel = `v${nextVer}`;
 
@@ -1694,12 +1758,12 @@ ${copyNotes.map((n) => `  • ${n}`).join('\n')}
           await fs.writeFile(path.join(copyDir3, `copy-${vLabel}-${s.chosenProvider}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
 
           updateSession({ copyDraft: newCopy, copyRevCount: nextVer });
-          log.info('COPY_REVISE', `copy.ok ${vLabel} provider=${s.chosenProvider} slides=${newCopy.slides.length}`);
+          log.info('COPY_REVISE', `copy.ok ${vLabel} provider=${s.chosenProvider} slides=${newCopy.slides.length} mergeText=${hasUserMerge}`);
 
           await _presentCopyDraft(newCopy, vLabel);
           await sendMessage(
             bots.editor,
-            `@주현대리 ${providerLabel} 카피 ${vLabel} 나왔어요. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+            `@주현대리 ${providerLabel} 카피 ${vLabel} 나왔어요${hasUserMerge ? ' (A·B 참고 + 주신 합본 텍스트 반영)' : ''}. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
           );
         } catch (e) {
           log.error('COPY_REVISE', '재생성 실패', e);
