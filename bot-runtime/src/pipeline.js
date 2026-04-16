@@ -21,6 +21,76 @@ async function typing(bot) {
   return sendTyping(bot);
 }
 
+// LLM 결과물의 모바일 오버플로우·문장 잘림을 결정적으로 막는 safety CSS 주입
+// LLM 이 매번 다른 클래스명·구조 써서 프롬프트 지시만으로는 100% 보장 안 됨
+// → 후처리로 </head> 직전에 high-specificity 규칙 추가
+function injectMobileSafetyCSS(html) {
+  if (!html || !/<\/head>/i.test(html)) return html;
+
+  const safetyCSS = `
+<style id="__mobile_safety__">
+/* bot-runtime 자동 주입 — LLM HTML의 모바일 오버플로우·문장 잘림 방지 */
+html, body { -webkit-text-size-adjust: 100%; }
+
+/* 1) Swiper 슬라이드: 모든 뷰포트에서 내부 스크롤 허용. flex-center 가 아니라 flex-start 로 시작 → 위부터 보임 */
+.swiper, .swiper-container { width:100%; height:100%; }
+.swiper-slide {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding: 72px 24px 48px !important;
+  box-sizing: border-box !important;
+}
+.swiper-slide::-webkit-scrollbar { width: 3px; }
+.swiper-slide::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.4); border-radius: 3px; }
+
+/* 2) 슬라이드 직계 자식: 한국어 단어 중간 끊김 방지 + 너비 제한 */
+.swiper-slide > * {
+  max-width: 100% !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+/* 3) 긴 텍스트 요소: break-word 안전망 */
+.swiper-slide p,
+.swiper-slide li,
+.swiper-slide h1,
+.swiper-slide h2,
+.swiper-slide h3 {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 4) 모바일 (≤768px): 패딩 축소 + 터치 스크롤 최적화 */
+@media (max-width: 768px) {
+  .swiper-slide {
+    padding: 56px 16px 36px !important;
+  }
+  .swiper-slide p,
+  .swiper-slide li {
+    line-height: 1.6;
+  }
+}
+
+/* 5) 아주 좁은 뷰포트 (≤375px) — 최소 가독성 */
+@media (max-width: 375px) {
+  .swiper-slide {
+    padding: 48px 12px 28px !important;
+  }
+}
+</style>
+`;
+
+  // 기존 __mobile_safety__ 블록 있으면 제거(중복 주입 방지)
+  const cleaned = html.replace(/<style[^>]*id="__mobile_safety__"[^>]*>[\s\S]*?<\/style>\s*/gi, '');
+  return cleaned.replace(/<\/head>/i, `${safetyCSS}\n</head>`);
+}
+
 // LLM 응답에서 HTML 부분만 추출 (코드블록 벗기기 + DOCTYPE 잘라내기)
 function extractHtml(text) {
   let html = (text || '').trim();
@@ -1282,6 +1352,9 @@ ${html.slice(0, 15000)}
     const cur = getSession() || s;
     const existingList = (cur.fullVersions && cur.fullVersions[opt.id]) || [];
     const version = existingList.length + 1;
+    // 모바일 오버플로우·문장 잘림 safety CSS 결정적 주입
+    html = injectMobileSafetyCSS(html);
+
     const fileName = `full-0${safeId}-v${version}.html`;
     const filePath = path.join(fullsDir, fileName);
     await fs.writeFile(filePath, html, 'utf-8');
@@ -1491,6 +1564,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
   const outDir = path.join(paths.outputDir, ym, slug);
   await fs.mkdir(outDir, { recursive: true });
   const htmlPath = path.join(outDir, 'index.html');
+  html = injectMobileSafetyCSS(html);
   await fs.writeFile(htmlPath, html, 'utf-8');
 
   updateSession({
@@ -2199,6 +2273,9 @@ ${copyBlock}
     }
 
     const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+    // 모바일 safety CSS 주입
+    html = injectMobileSafetyCSS(html);
+
     const fileName = `preview-0${safeId}.html`;
     const filePath = path.join(previewsDir, fileName);
     await fs.writeFile(filePath, html, 'utf-8');
