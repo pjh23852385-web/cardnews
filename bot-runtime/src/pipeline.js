@@ -6,10 +6,58 @@ import { promisify } from 'node:util';
 import { bots, paths, models } from './config.js';
 import { callAgent } from './claude.js';
 import { loadAgentSystem, loadCurrentDesign } from './agents.js';
-import { sendMessage, sendTyping, sendDocument } from './telegram.js';
+import * as tg from './telegram.js';
+import * as state from './state.js';
+import { STATES } from './state.js';
 import { callOpenAI } from './openai.js';
-import { STATES, newSession, getSession, updateSession, resetSession } from './state.js';
 import * as log from './logger.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+
+// ──────────────────────────────────────────────
+// 그룹 컨텍스트 (다중 그룹 지원) — 파일 하단의 wrapper 가 자동 주입
+// ──────────────────────────────────────────────
+const groupCtx = new AsyncLocalStorage();
+
+/**
+ * 핸들러 호출을 groupId 컨텍스트로 감싸기. index.js 에서 사용.
+ *   await runWithGroup(chatId, () => handleUserText(text));
+ */
+export function runWithGroup(groupId, fn) {
+  return groupCtx.run({ groupId }, fn);
+}
+
+function _gid() {
+  const id = groupCtx.getStore()?.groupId;
+  if (id == null) {
+    throw new Error('pipeline: groupId 없음 — runWithGroup() 으로 감싸야 함');
+  }
+  return id;
+}
+
+// 편의 래퍼 — pipeline.js 본문이 기존 이름 그대로 쓰게 함
+async function sendMessage(bot, text, extra = {}) {
+  return tg.sendMessage(bot, text, _gid(), extra);
+}
+async function sendDocument(bot, filePath, caption = '') {
+  return tg.sendDocument(bot, filePath, caption, _gid());
+}
+async function sendTyping(bot) {
+  return tg.sendTyping(bot, _gid());
+}
+function getSession() { return state.getSession(_gid()); }
+function updateSession(patch) { return state.updateSession(_gid(), patch); }
+function resetSession() { return state.resetSession(_gid()); }
+function newSession(initial) { return state.newSession(_gid(), initial); }
+
+// 그룹별 output 네임스페이스 — 파일·폴더 충돌 방지
+function _groupOutputDir() {
+  return path.join(paths.outputDir, `g-${_gid()}`);
+}
+
+// Vercel 프로젝트명 접두 — 그룹 구분 (50자 제한 고려해 축약)
+function _gidSlug() {
+  return String(Math.abs(_gid())).slice(-8);
+}
 
 // 긴급 탈출 키워드 — BUILDING/DEPLOYING 중에도 허용
 const ESCAPE_PATTERN = /^\s*(취소|리셋|초기화|처음부터|강제종료|cancel|reset)\s*$/i;
@@ -238,7 +286,7 @@ async function _presentTwoCopyDrafts(opusJson, gptJson, versionLabel) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const baseSlug = session?.slug || `cardnews-${Date.now()}`;
-  const copyDir = path.join(paths.outputDir, ym, baseSlug, 'copy');
+  const copyDir = path.join(_groupOutputDir(), ym, baseSlug, 'copy');
   await fs.mkdir(copyDir, { recursive: true });
 
   // 각 버전 저장 + 포맷
@@ -291,7 +339,7 @@ async function _presentCopyDraft(copyJson, versionLabel) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const baseSlug = session?.slug || `cardnews-${Date.now()}`;
-  const copyDir = path.join(paths.outputDir, ym, baseSlug, 'copy');
+  const copyDir = path.join(_groupOutputDir(), ym, baseSlug, 'copy');
   await fs.mkdir(copyDir, { recursive: true });
   const mdPath = path.join(copyDir, `copy-${versionLabel}.md`);
   await fs.writeFile(mdPath, formatted, 'utf-8');
@@ -878,7 +926,7 @@ export async function handleAudienceAnswer(rawAnswer) {
   // 저장
   const now2 = new Date();
   const ym2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
-  const copyDir = path.join(paths.outputDir, ym2, baseSlug, 'copy');
+  const copyDir = path.join(_groupOutputDir(), ym2, baseSlug, 'copy');
   await fs.mkdir(copyDir, { recursive: true });
   await fs.writeFile(path.join(copyDir, `copy-v1-${chosen}.json`), JSON.stringify(chosenJson, null, 2), 'utf-8');
 
@@ -1166,7 +1214,7 @@ async function _runStyleBuild(choices, typingInterval) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const baseSlug = s.slug || `cardnews-${Date.now()}`;
-  const fullsDir = path.join(paths.outputDir, ym, baseSlug, 'fulls');
+  const fullsDir = path.join(_groupOutputDir(), ym, baseSlug, 'fulls');
   await fs.mkdir(fullsDir, { recursive: true });
 
   const editorSystemForQA = await loadAgentSystem('editor');
@@ -1561,7 +1609,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
 
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  const outDir = path.join(paths.outputDir, ym, slug);
+  const outDir = path.join(_groupOutputDir(), ym, slug);
   await fs.mkdir(outDir, { recursive: true });
   const htmlPath = path.join(outDir, 'index.html');
   html = injectMobileSafetyCSS(html);
@@ -1583,7 +1631,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
   // 자동 임시 Vercel preview 배포 (매 revision마다 새 URL)
   const revN = (s.revisionCount || 0) + 1;
   updateSession({ revisionCount: revN });
-  const previewProjectName = `cardnews-${slug}-r${revN}`.slice(0, 50);
+  const previewProjectName = `cardnews-g${_gidSlug()}-${slug}-r${revN}`.slice(0, 50);
   let previewUrl = null;
   try {
     await sendMessage(bots.editor, `🚀 임시 미리보기 배포 중 (revision ${revN})...\n\n— 편집장`);
@@ -1620,7 +1668,7 @@ export async function handleFinalConfirm() {
 
   try {
     // vercel deploy
-    const projectName = `cardnews-${s.slug}`.slice(0, 50);
+    const projectName = `cardnews-g${_gidSlug()}-${s.slug}`.slice(0, 50);
     const outDir = path.dirname(s.htmlPath);
     const { stdout } = await execAsync(
       `vercel deploy --prod --yes --name ${projectName}`,
@@ -1683,7 +1731,7 @@ export async function handleFinalDeploy(finalId, finalVersion) {
     const finalHtmlPath = path.join(finalDir, 'index.html');
     await fs.copyFile(target.path, finalHtmlPath);
 
-    const projectName = `cardnews-${s.slug}`.slice(0, 50);
+    const projectName = `cardnews-g${_gidSlug()}-${s.slug}`.slice(0, 50);
     const { stdout } = await execAsync(
       `vercel deploy --prod --yes --name ${projectName}`,
       { cwd: finalDir, maxBuffer: 10 * 1024 * 1024 },
@@ -1808,7 +1856,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
               const now3 = new Date();
               const ym3 = `${now3.getFullYear()}-${String(now3.getMonth() + 1).padStart(2, '0')}`;
               const baseSlug3 = cur.slug || `cardnews-${Date.now()}`;
-              const copyDir3 = path.join(paths.outputDir, ym3, baseSlug3, 'copy');
+              const copyDir3 = path.join(_groupOutputDir(), ym3, baseSlug3, 'copy');
               await fs.mkdir(copyDir3, { recursive: true });
               await fs.writeFile(path.join(copyDir3, `copy-${vLabel}-${cur.chosenProvider}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
 
@@ -1957,7 +2005,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
           const now3 = new Date();
           const ym3 = `${now3.getFullYear()}-${String(now3.getMonth() + 1).padStart(2, '0')}`;
           const baseSlug3 = s.slug || `cardnews-${Date.now()}`;
-          const copyDir3 = path.join(paths.outputDir, ym3, baseSlug3, 'copy');
+          const copyDir3 = path.join(_groupOutputDir(), ym3, baseSlug3, 'copy');
           await fs.mkdir(copyDir3, { recursive: true });
           await fs.writeFile(path.join(copyDir3, `copy-${vLabel}-${s.chosenProvider}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
 
@@ -2219,7 +2267,7 @@ async function generateOptionPreviews(s, options, audience) {
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const baseSlug = s.slug || `cardnews-${Date.now()}`;
-  const previewsDir = path.join(paths.outputDir, ym, baseSlug, 'previews');
+  const previewsDir = path.join(_groupOutputDir(), ym, baseSlug, 'previews');
   await fs.mkdir(previewsDir, { recursive: true });
   if (!s.slug) updateSession({ slug: baseSlug });
 

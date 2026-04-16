@@ -21,7 +21,8 @@ export const paths = {
   assetsDir: path.join(PROJECT_ROOT, 'assets'),
   agentsDir: path.join(PROJECT_ROOT, '.claude', 'agents'),
   telegramDir: path.join(PROJECT_ROOT, '.claude', 'telegram'),
-  sessionFile: path.join(__dirname, '..', 'session.json'),  // bot-runtime/session.json — 재시작 복원용
+  sessionFile: path.join(__dirname, '..', 'session.json'),  // 레거시 단일 파일 (마이그레이션 대상)
+  sessionsDir: path.join(__dirname, '..', 'sessions'),       // 그룹별 세션 파일 디렉터리
 };
 
 function required(name) {
@@ -30,13 +31,27 @@ function required(name) {
   return v;
 }
 
+// 그룹 ID 복수 파싱 — 하위 호환: TELEGRAM_GROUP_ID 단수도 허용
+function parseGroupIds() {
+  const raw = process.env.TELEGRAM_GROUP_IDS || process.env.TELEGRAM_GROUP_ID || '';
+  const ids = raw.split(',').map((s) => Number(s.trim())).filter((n) => Number.isFinite(n) && n !== 0);
+  if (ids.length === 0) {
+    throw new Error('환경변수 TELEGRAM_GROUP_IDS (또는 TELEGRAM_GROUP_ID) 필수. 쉼표 구분 여러 그룹 허용.');
+  }
+  return ids;
+}
+
+const GROUP_IDS = parseGroupIds();
+
 export const env = {
   ANTHROPIC_API_KEY: required('ANTHROPIC_API_KEY'),
   OPENAI_API_KEY: required('OPENAI_API_KEY'),  // 이미지 생성 + 카피 A/B 비교 (GPT-5) — 필수
   TELEGRAM_BOT_EDITOR: required('TELEGRAM_BOT_EDITOR'),
   TELEGRAM_BOT_COPY: required('TELEGRAM_BOT_COPY'),
   TELEGRAM_BOT_ART: required('TELEGRAM_BOT_ART'),
-  TELEGRAM_GROUP_ID: Number(required('TELEGRAM_GROUP_ID')),
+  TELEGRAM_GROUP_IDS: new Set(GROUP_IDS),                // 허용된 그룹 ID Set (다중)
+  TELEGRAM_GROUP_IDS_LIST: GROUP_IDS,                    // 순서 유지 배열 (시작 메시지 전송용)
+  TELEGRAM_GROUP_ID: GROUP_IDS[0],                       // 레거시 호환 — 첫 번째 그룹
 };
 
 export const bots = {

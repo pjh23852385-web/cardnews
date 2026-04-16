@@ -59,7 +59,8 @@ ANTHROPIC_API_KEY       # Phase 2 Node.js 폴링 런타임에서 에이전트 LL
 TELEGRAM_BOT_EDITOR     # @HanwhaFinanceNewsBot
 TELEGRAM_BOT_COPY       # @hl_copywriter_bot
 TELEGRAM_BOT_ART        # @hl_artdirector_bot
-TELEGRAM_GROUP_ID       # -5041725581 (카드뉴스 작업 그룹방)
+TELEGRAM_GROUP_IDS      # -5041725581 (쉼표 구분 복수 허용 — 팀원 각자 그룹 추가 가능)
+                        # 레거시 단수 TELEGRAM_GROUP_ID 도 동작
 ```
 
 ---
