@@ -33,6 +33,11 @@ export async function callOpenAI(systemPrompt, userPrompt, opts = {}) {
   if (opts.json) {
     body.response_format = { type: 'json_object' };
   }
+  // GPT-5 는 reasoning 모델 — reasoning tokens 소모로 출력 부족 방지
+  // 카피 생성 같은 빠른 생성 작업은 reasoning 최소화
+  if (/^(gpt-5|o1|o3)/.test(model)) {
+    body.reasoning_effort = opts.reasoningEffort || 'minimal';
+  }
 
   let lastErr;
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
