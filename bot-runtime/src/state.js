@@ -7,6 +7,7 @@ export const STATES = {
   IDLE: 'idle',
   AWAITING_AUDIENCE: 'awaiting_audience',          // ✋ 체크포인트 ①
   AWAITING_SCOPE: 'awaiting_scope',                // 소스에 주제 여러 개일 때
+  AWAITING_COPY_APPROVAL: 'awaiting_copy_approval',// ✋ 체크포인트 ①.5 — 카피 검토·수정·승인
   AWAITING_OPTION: 'awaiting_option',              // ✋ 체크포인트 ② — 스타일 프리뷰 중 복수 선택
   AWAITING_CONTENT_SUPPLEMENT: 'awaiting_content_supplement', // 카피 보충 제안
   BUILDING_FULLS: 'building_fulls',                // 카피 1회 + 스타일별 풀 HTML 병렬 생성
@@ -91,6 +92,8 @@ export function newSession(initial = {}) {
     previewAttachments: null,     // [{id,name,path}] — ③ 단계 미니 프리뷰 파일 경로
     styleChoices: [],             // ['①','③'] — ④ 단계에서 주현대리가 고른 스타일들
     copyDraft: null,              // 카피라이터가 뽑은 공통 카피 (JSON)
+    copyApproved: false,          // 카피 승인 여부 (true 되어야 아트 옵션 단계 진입)
+    copyRevCount: 0,              // 카피 수정 반복 횟수 (v1, v2, ...)
     fullVersions: {},             // { '①': [{v:1,path,builtAt}], '②': [{v:1,...},{v:2,...}], ... }
     finalChoice: null,            // { id:'①', version:1 } — ⑦ 단계에서 배포할 대상
     pendingNotes: {},             // { '①': ['1페이지 헤드라인 X 고쳐', ...], ... } — apply_notes 대기 중 수정 지시 누적

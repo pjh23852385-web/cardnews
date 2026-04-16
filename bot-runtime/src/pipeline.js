@@ -32,6 +32,104 @@ function extractHtml(text) {
   return html;
 }
 
+// 카피 JSON → 사람 읽기 쉬운 텔레그램 메시지 포맷
+function formatCopyForReview(copyJson, versionLabel = 'v1') {
+  if (!copyJson || !Array.isArray(copyJson.slides)) return '(카피 없음)';
+  const lines = [`📝 **카피 초안 (${versionLabel}, 총 ${copyJson.slides.length}장)**`];
+  if (copyJson.title) lines.push(`\n_${copyJson.title}_`);
+  copyJson.slides.forEach((sl, i) => {
+    const n = String(i + 1).padStart(2, '0');
+    lines.push(`\n[${n}] ${sl.kind || ''}`);
+    if (sl.headline) lines.push(`  🔹 ${sl.headline}`);
+    if (sl.subtitle) lines.push(`  ─ ${sl.subtitle}`);
+    if (sl.title) lines.push(`  📖 ${sl.title}`);
+    if (sl.body) lines.push(`  ${String(sl.body).slice(0, 160)}${String(sl.body).length > 160 ? '…' : ''}`);
+    if (sl.implication) lines.push(`  💡 ${sl.implication}`);
+    if (Array.isArray(sl.cards) && sl.cards.length > 0) {
+      sl.cards.forEach((c) => lines.push(`    • ${c.label || ''}: ${c.value || ''} — ${c.desc || ''}`));
+    }
+    if (Array.isArray(sl.topics) && sl.topics.length > 0) {
+      lines.push(`  🏷 ${sl.topics.join(' · ')}`);
+    }
+  });
+  return lines.join('\n');
+}
+
+// 공용 카피 생성 — _runStyleBuild 와 handleAudienceAnswer 양쪽에서 사용
+async function _generateCopyJson(session) {
+  const copySystem = await loadAgentSystem('copywriter');
+  const notesBlock = (session.userNotes && session.userNotes.length > 0)
+    ? `\n## 🌟 사용자 요구사항 (반드시 반영)\n${session.userNotes.map((n) => `- ${n}`).join('\n')}\n`
+    : '';
+  const prompt = `카드뉴스 카피를 슬라이드별 JSON으로 뽑으세요. 스타일과 무관한 카피 공통본.
+
+## 컨텍스트
+- 오디언스: ${session.audience}
+- 노션 URL: ${session.notionUrl || '없음'}${notesBlock}
+
+## 본문
+${session.sourceText}
+
+## 핵심 철학 (CLAUDE.md)
+오디언스와 시사점은 항상 한 세트. 오디언스 없이 카피 안 쓴다. 시사점 없는 카피는 요약이지 카피 아님.
+
+## 요구사항
+- 12~18 슬라이드
+- 표지 + 챕터 디바이더 + 본문 + 시사점 박스 + CTA
+- 슬라이드마다: {kind, headline, subtitle, body, implication, data, cta_url}
+- headline: 돌직구, 독자를 다음 슬라이드로 당김
+- implication: "그래서 ${session.audience} 가 지금 뭘 해야 하는가"
+- 숫자·고유명사 살려서 (ARR 2,000억, GitHub 316,000★ 같은)
+
+## 출력 형식 (JSON만)
+\`\`\`json
+{
+  "title":"...",
+  "slides":[
+    {"kind":"cover","headline":"...","subtitle":"...","topics":["..."]},
+    {"kind":"chapter","num":"01","title":"...","sub":"..."},
+    {"kind":"body","headline":"...","body":"...","implication":"..."},
+    {"kind":"data","headline":"...","cards":[{"label":"...","value":"...","desc":"..."}],"implication":"..."},
+    {"kind":"cta","headline":"...","url":"${session.notionUrl || ''}"}
+  ]
+}
+\`\`\``;
+  const res = await callAgent(copySystem, prompt, {
+    model: models.main,
+    maxTokens: 8000,
+    json: true,
+  });
+  if (!res.json || !Array.isArray(res.json.slides)) {
+    throw new Error('카피 JSON 파싱 실패');
+  }
+  return res.json;
+}
+
+// 생성된 카피를 주현대리에게 제시 — 길면 파일 첨부, 짧으면 메시지
+async function _presentCopyDraft(copyJson, versionLabel) {
+  const formatted = formatCopyForReview(copyJson, versionLabel);
+  const TELEGRAM_LIMIT = 4000;
+  if (formatted.length <= TELEGRAM_LIMIT) {
+    await sendMessage(bots.copywriter, formatted);
+    return;
+  }
+  // 길면 파일로
+  const session = getSession();
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const baseSlug = session?.slug || `cardnews-${Date.now()}`;
+  const copyDir = path.join(paths.outputDir, ym, baseSlug, 'copy');
+  await fs.mkdir(copyDir, { recursive: true });
+  const mdPath = path.join(copyDir, `copy-${versionLabel}.md`);
+  await fs.writeFile(mdPath, formatted, 'utf-8');
+  const jsonPath = path.join(copyDir, `copy-${versionLabel}.json`);
+  await fs.writeFile(jsonPath, JSON.stringify(copyJson, null, 2), 'utf-8');
+  await sendMessage(bots.copywriter, `📝 카피 초안 ${versionLabel} — 길어서 파일로 보내드려요.\n\n— 카피`);
+  try { await sendDocument(bots.copywriter, mdPath, `카피 ${versionLabel}`); } catch (e) {
+    log.error('COPY_PRESENT', 'sendDocument 실패', e);
+  }
+}
+
 // ──────────────────────────────────────────────
 // 자연어 파서 — 추출·이해는 Sonnet(main), 단순 분기는 Haiku(light)
 // ──────────────────────────────────────────────
@@ -479,27 +577,105 @@ export async function handleAudienceAnswer(rawAnswer) {
     model: models.main,
     maxTokens: 400,
   });
-  await sendMessage(bots.editor, `📋 톤 브리핑\n${briefing}\n\n아트님, 이 톤으로 3옵션 부탁해요.\n\n— 편집장`);
+  await sendMessage(bots.editor, `📋 톤 브리핑\n${briefing}\n\n카피 먼저 뽑고 내용 합의한 뒤에 아트 옵션 갈게요.\n\n— 편집장`);
 
-  // 아트디렉터 받았어요 리액션
-  await sendMessage(bots.artDirector, `받았어요, 편집장. 최소 3가지 가져옵니다. 잠깐만요.\n\n— 아트`);
+  // 카피라이터 착수 리액션
+  await sendMessage(bots.copywriter, `받았어요. 본문·오디언스 보고 카피 뽑을게요.\n\n— 카피`);
 
-  // 아트디렉터 3옵션 생성 (Sonnet — 본문 전체 읽고 콘텐츠 맞춤 제안)
+  // 공용 카피 생성 함수 호출
+  await typing(bots.copywriter);
+  let copyJson;
+  try {
+    copyJson = await _generateCopyJson(s);
+  } catch (e) {
+    log.error('COPY_DRAFT', '카피 생성 실패', e);
+    await sendMessage(
+      bots.editor,
+      `⚠️ 카피 생성 실패: ${String(e.message || e).slice(0, 150)}. 소스를 다시 던져주세요.\n\n— 편집장`,
+    );
+    resetSession();
+    return;
+  }
+
+  // 카피 JSON 저장
+  const now2 = new Date();
+  const ym2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
+  const baseSlug = s.slug || `cardnews-${Date.now()}`;
+  const copyDir = path.join(paths.outputDir, ym2, baseSlug, 'copy');
+  await fs.mkdir(copyDir, { recursive: true });
+  await fs.writeFile(path.join(copyDir, 'copy-v1.json'), JSON.stringify(copyJson, null, 2), 'utf-8');
+
+  updateSession({
+    state: STATES.AWAITING_COPY_APPROVAL,
+    copyDraft: copyJson,
+    copyRevCount: 1,
+    copyApproved: false,
+    slug: baseSlug,
+  });
+  log.state(STATES.AWAITING_AUDIENCE, STATES.AWAITING_COPY_APPROVAL, `copy.v1 slides=${copyJson.slides.length}`);
+
+  // 카피 제시
+  await _presentCopyDraft(copyJson, 'v1');
+
+  // 편집장 체크포인트 ①.5 안내
+  await sendMessage(
+    bots.editor,
+    `@주현대리 카피 초안 받으셨어요 (v1, 총 ${copyJson.slides.length}장).
+
+🔍 **체크 포인트**
+  ✓ 헤드라인 방향 (돌직구·임팩트)
+  ✓ 시사점: "${audience} 이 지금 뭘 해야 하는가" 명확한지
+  ✓ 슬라이드 개수와 순서
+  ✓ 데이터·숫자 강조
+
+✏️ **수정은 자유롭게 쌓아두세요** (재생성 안 함):
+  • "3번 슬라이드 헤드라인 더 강하게"
+  • "데이터 파트 축소"
+  → 메모로 쌓여요. 토큰 안 써요.
+
+🔄 **다 쌓으면 반영** (그때 v2 뽑아요, ~30초):
+  • "**반영해**" / "**v2 뽑아줘**" / "**다시 만들어**"
+
+🚀 **만족이면 승인** (아트 옵션 단계로 진행):
+  • "**카피 OK**" / "**승인**" / "**카피 진행**"
+
+— 편집장 (체크포인트 ①.5)`,
+  );
+}
+
+// ──────────────────────────────────────────────
+// 2b) 아트 3옵션 제안 + 미리보기 생성 (카피 승인 후 호출)
+// ──────────────────────────────────────────────
+export async function proposeArtOptions() {
+  const s = getSession();
+  if (!s) return;
+  if (!s.copyDraft) {
+    await sendMessage(bots.editor, `⚠️ 카피가 없어요. 소스 다시 주세요.\n\n— 편집장`);
+    return;
+  }
+
+  const audience = s.audience;
+  const editorSystem = await loadAgentSystem('editor');
+
+  await sendMessage(bots.artDirector, `받았어요, 편집장. 카피 보고 3가지 가져옵니다. 잠깐만요.\n\n— 아트`);
+
+  // 아트디렉터 3옵션 생성 (카피 기반)
   await typing(bots.artDirector);
   const design = await loadCurrentDesign();
   const artSystem = await loadAgentSystem('art-director');
   const userNotesText = (s.userNotes && s.userNotes.length > 0)
     ? `\n주현대리 추가 요구:\n${s.userNotes.map((n) => `- ${n}`).join('\n')}\n`
     : '';
-  const artPrompt = `본문 분석 + 카드뉴스 디자인×인터랙션 3옵션을 JSON으로만 답하세요. 자연어 설명 일체 금지. JSON 블록 하나만.
+  const copySummary = JSON.stringify(s.copyDraft, null, 2).slice(0, 6000);
+  const artPrompt = `카드뉴스 카피가 이미 확정됐어. 이 카피의 **톤·구조·강조 포인트**에 최적화된 디자인×인터랙션 3옵션을 JSON으로만. 자연어 설명 일체 금지.
 
 오디언스: ${audience}
 ${userNotesText}
 현재 디자인 스타일 라이브러리: ${design.name}
 ${design.content}
 
-본문 전체:
-${s.sourceText}
+확정 카피 (스타일은 이 내용을 담는 그릇):
+${copySummary}
 
 ---
 
@@ -507,8 +683,8 @@ ${s.sourceText}
 
 \`\`\`json
 {
-  "analysis": "본문 분석 2~3줄만 (150자 내외). 콘텐츠 종류, 주제 개수, 핵심 시각 포인트.",
-  "intro_line": "발화 시작 문구 (예: '본문 보니까 이런 특성이 있어서 3가지 방향 가져왔어.')",
+  "analysis": "카피 분석 2~3줄 (150자 내외). 카피 톤, 슬라이드 개수, 숫자 강조 여부, 시사점 위치 등.",
+  "intro_line": "발화 시작 문구 (예: '카피 보니까 이런 특성이 있어서 3가지 방향 가져왔어.')",
   "options": [
     {
       "id": "①",
@@ -516,12 +692,12 @@ ${s.sourceText}
       "colors": "색감",
       "layout": "레이아웃",
       "interaction": "인터랙션",
-      "fits": "본문 특성과 매칭 이유"
+      "fits": "카피 특성과 매칭 이유"
     },
     {"id": "②", "name": "...", "colors": "...", "layout": "...", "interaction": "...", "fits": "..."},
     {"id": "③", "name": "...", "colors": "...", "layout": "...", "interaction": "...", "fits": "..."}
   ],
-  "outro_line": "마무리 한 줄 (예: '어떤 방향으로 갈지 확인해 줘.')"
+  "outro_line": "마무리 한 줄"
 }
 \`\`\`
 
@@ -531,7 +707,6 @@ ${s.sourceText}
 - 아트 톤(ENTP, 조수용+배민 디자인팀)으로 자연스럽게 (JSON 필드 텍스트 안에서).`;
 
   let artJson;
-  // 아트 호출 — 최대 2회 시도 (JSON 파싱 실패 시 재질문)
   for (let attempt = 1; attempt <= 2; attempt++) {
     try {
       const r = await callAgent(artSystem, artPrompt, {
@@ -540,42 +715,30 @@ ${s.sourceText}
         json: true,
       });
       artJson = r.json;
-      if (artJson && Array.isArray(artJson.options) && artJson.options.length === 3) {
-        break; // 성공
-      }
-      if (attempt < 2) {
-        console.warn('⚠️ 아트 JSON 파싱 실패, 재질문 중...');
-        await typing(bots.artDirector);
-      }
+      if (artJson && Array.isArray(artJson.options) && artJson.options.length === 3) break;
+      if (attempt < 2) { await typing(bots.artDirector); }
     } catch (e) {
       if (attempt === 2) {
-        await sendMessage(
-          bots.editor,
-          `⚠️ @주현대리 아트 쪽 네트워크 에러로 3옵션 생성 실패했어요. 소스 다시 한 번 던져주시겠어요?\n\n— 편집장`,
-        );
-        resetSession();
+        await sendMessage(bots.editor, `⚠️ @주현대리 아트 쪽 에러로 3옵션 생성 실패. 카피 단계에서 다시 "승인" 해주세요.\n\n— 편집장`);
+        updateSession({ state: STATES.AWAITING_COPY_APPROVAL });
         return;
       }
     }
   }
 
-  // 최종 검증
   if (!artJson || !Array.isArray(artJson.options) || artJson.options.length < 2) {
-    await sendMessage(
-      bots.editor,
-      `⚠️ 아트 3옵션 파싱이 두 번 다 실패했어요. 소스 다시 던져주시면 바로 재시도할게요.\n\n— 편집장`,
-    );
-    resetSession();
+    await sendMessage(bots.editor, `⚠️ 아트 3옵션 파싱 실패. 다시 "카피 OK" 주시면 재시도할게요.\n\n— 편집장`);
+    updateSession({ state: STATES.AWAITING_COPY_APPROVAL });
     return;
   }
 
-  // JSON에서 Telegram 메시지 조립
+  // Telegram 메시지 조립
   const parts = [];
   if (artJson.intro_line) parts.push(artJson.intro_line);
-  parts.push(''); // blank line
-  parts.push('📊 본문 분석');
+  parts.push('');
+  parts.push('📊 카피 분석');
   parts.push(artJson.analysis);
-  parts.push(''); // blank line
+  parts.push('');
   for (const opt of artJson.options) {
     parts.push(`${opt.id} **${opt.name}**`);
     parts.push(`   🎨 ${opt.colors}`);
@@ -586,47 +749,36 @@ ${s.sourceText}
   }
   if (artJson.outro_line) parts.push(artJson.outro_line);
   parts.push('— 아트');
-  const talkMsg = parts.join('\n');
-  await sendMessage(bots.artDirector, `🎨 ${talkMsg}`);
+  await sendMessage(bots.artDirector, `🎨 ${parts.join('\n')}`);
 
-  // 편집장 리액션 (아트 보고 칭찬 + 정리 준비)
+  await sendMessage(bots.editor, `👍 아트, 좋네요. 미리보기 만들게요.\n\n— 편집장`);
+
+  // 미리보기 생성 (카피 사용 — 아래 수정)
   await sendMessage(
     bots.editor,
-    `👍 아트, 좋네요. 제가 오디언스 기준으로 정리해서 주현대리께 여쭤볼게요.\n\n— 편집장`,
-  );
-
-  // 미니 미리보기 N개 병렬 생성 — 파일로만 저장하고 Telegram 첨부로 전달
-  await sendMessage(
-    bots.editor,
-    `📐 아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초 걸려요. HTML 파일로 직접 보내드릴게요 — 클릭해서 열어보시면 됩니다.\n\n— 편집장`,
+    `📐 아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초. 실제 카피 헤드라인 그대로 들어갑니다.\n\n— 편집장`,
   );
 
   let previews = [];
   try {
     previews = await generateOptionPreviews(s, artJson.options, audience);
     if (previews.length > 0) {
-      await sendMessage(bots.artDirector, `🎨 미리보기 나왔어요. ${previews.length}개 첨부 드려요 — 클릭해서 열어보세요.\n\n— 아트`);
+      await sendMessage(bots.artDirector, `🎨 미리보기 ${previews.length}개 첨부 — 클릭해서 열어보세요.\n\n— 아트`);
       for (const p of previews) {
-        try {
-          await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`);
-        } catch (e) {
-          log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e);
-        }
+        try { await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`); }
+        catch (e) { log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e); }
       }
       updateSession({ previewAttachments: previews });
     }
   } catch (e) {
     log.error('PREVIEW', '미리보기 생성 실패', e);
-    await sendMessage(
-      bots.editor,
-      `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`,
-    );
+    await sendMessage(bots.editor, `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`);
   }
 
-  // 편집장 정리 + 추천 (Haiku — 그냥 포맷팅)
+  // 편집장 추천 정리
   await typing(bots.editor);
   const options = artJson?.options || [];
-  const editorSummaryPrompt = `아트가 3옵션 제안. 주현대리께 추천 메시지 작성.
+  const summaryPrompt = `아트가 3옵션 제안. 주현대리께 추천 메시지 작성.
 
 옵션:
 ${JSON.stringify(options, null, 2)}
@@ -636,19 +788,16 @@ ${JSON.stringify(options, null, 2)}
 요구사항:
 - 오디언스 기준으로 **딱 하나** 추천 + 한 줄 이유
 - 추천을 "추천: ①" 같이 명시
-- "①/②/③ 중 어떤 걸로?" 질문
+- "①/②/③ 중 어떤 걸로?" 질문 (복수 킵도 OK 한 줄 추가)
 - 3~5줄
 - 끝에 "— 편집장 (체크포인트 ②)"`;
 
-  const { text: summaryMsg } = await callAgent(editorSystem, editorSummaryPrompt, {
+  const { text: summaryMsg } = await callAgent(editorSystem, summaryPrompt, {
     model: models.main,
     maxTokens: 400,
   });
-
-  // 편집장 추천 옵션 추출 ("추천: ②" 또는 "추천 ②" 패턴)
   const recMatch = summaryMsg.match(/추천[\s:]*([①②③])/);
   const recommendedOption = recMatch ? recMatch[1] : null;
-
   await sendMessage(bots.editor, summaryMsg);
 
   updateSession({
@@ -656,6 +805,7 @@ ${JSON.stringify(options, null, 2)}
     options,
     recommendedOption,
   });
+  log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${options.length}`);
 }
 
 // ──────────────────────────────────────────────
@@ -720,62 +870,23 @@ async function _runStyleBuild(choices, typingInterval) {
   const selectedOptions = (s.options || []).filter((o) => choices.includes(o.id));
   if (selectedOptions.length === 0) throw new Error(`선택된 스타일 ${choices.join('·')} 과 매칭되는 옵션 없음`);
 
-  // ── 1) 카피 1회 생성 (공통) ───────────────────────────
-  const copySystem = await loadAgentSystem('copywriter');
-  const notesBlock = (s.userNotes && s.userNotes.length > 0)
-    ? `\n## 🌟 사용자 요구사항\n${s.userNotes.map((n) => `- ${n}`).join('\n')}\n`
-    : '';
-  const copyPrompt = `카드뉴스 카피를 슬라이드별 JSON 배열로 뽑으세요. 스타일과 무관한 카피 공통본.
-
-## 컨텍스트
-- 오디언스: ${s.audience}
-- 노션 URL: ${s.notionUrl || '없음'}${notesBlock}
-
-## 본문
-${s.sourceText}
-
-## 핵심 철학 (CLAUDE.md)
-오디언스와 시사점은 항상 한 세트. 오디언스 없이 카피 안 쓴다. 시사점 없는 카피는 요약이지 카피 아님.
-
-## 요구사항
-- 12~18 슬라이드
-- 표지 + 챕터 디바이더 + 본문 + 시사점 박스 + CTA
-- 슬라이드마다: {kind, headline, subtitle, body, implication, data, cta_url}
-- headline: 돌직구, 독자를 다음 슬라이드로 당김
-- implication: "그래서 ${s.audience} 가 지금 뭘 해야 하는가"
-- 숫자·고유명사 살려서 (ARR 2,000억, GitHub 316,000★ 같은)
-
-## 출력 형식 (JSON만)
-\`\`\`json
-{
-  "title":"...",
-  "slides":[
-    {"kind":"cover","headline":"...","subtitle":"...","topics":["..."]},
-    {"kind":"chapter","num":"01","title":"...","sub":"..."},
-    {"kind":"body","headline":"...","body":"...","implication":"..."},
-    {"kind":"data","headline":"...","cards":[{"label":"...","value":"...","desc":"..."}],"implication":"..."},
-    {"kind":"cta","headline":"...","url":"${s.notionUrl || ''}"}
-  ]
-}
-\`\`\``;
-
-  log.info('BUILDING_FULLS', `copy.start audience=${s.audience}`);
-  const copyRes = await callAgent(copySystem, copyPrompt, {
-    model: models.main,
-    maxTokens: 8000,
-    json: true,
-  });
-  if (!copyRes.json || !Array.isArray(copyRes.json.slides)) {
-    throw new Error('카피 JSON 파싱 실패');
+  // ── 1) 카피는 AWAITING_COPY_APPROVAL 단계에서 승인됐어야 함 — 재사용 ───
+  //     (레거시 세션 호환: copyDraft 없으면 인라인 생성)
+  let copyJson;
+  if (s.copyDraft && Array.isArray(s.copyDraft.slides)) {
+    copyJson = s.copyDraft;
+    log.info('BUILDING_FULLS', `copy.reuse v=${s.copyRevCount || 1} slides=${copyJson.slides.length}`);
+    await sendMessage(
+      bots.copywriter,
+      `📝 승인받은 카피 v${s.copyRevCount || 1} (${copyJson.slides.length}장) 그대로 넘깁니다.\n\n— 카피`,
+    );
+  } else {
+    log.warn('BUILDING_FULLS', 'copyDraft 없음 — 레거시 세션으로 인라인 생성');
+    await sendMessage(bots.copywriter, `카피 먼저 뽑을게요 (카피 승인 단계 건너뛴 상태 — 다음 편부터는 승인 먼저).\n\n— 카피`);
+    copyJson = await _generateCopyJson(s);
+    updateSession({ copyDraft: copyJson, copyRevCount: 1, copyApproved: true });
+    log.info('BUILDING_FULLS', `copy.inline.ok slides=${copyJson.slides.length}`);
   }
-  const copyJson = copyRes.json;
-  updateSession({ copyDraft: copyJson });
-  log.info('BUILDING_FULLS', `copy.ok slides=${copyJson.slides.length}`);
-
-  await sendMessage(
-    bots.copywriter,
-    `📝 카피 완성 (${copyJson.slides.length}장). 아트한테 넘겨요.\n\n— 카피`,
-  );
 
   // ── 2) 스타일별 풀 HTML 병렬 생성 ─────────────────────
   const design = await loadCurrentDesign();
@@ -1354,6 +1465,119 @@ export async function handleUserText(text) {
       await handleAudienceAnswer(text);
       break;
 
+    case STATES.AWAITING_COPY_APPROVAL: {
+      const f = await parseFinalChoice(text, s);
+      log.info('COPY_PARSE', `action=${f.action} notes=${f.notes.length}`);
+
+      if (f.action === 'cancel') {
+        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
+        resetSession();
+        break;
+      }
+
+      // "카피 OK"/"승인" → 아트 옵션 단계로 진행 (confirm 의미 전환)
+      if (f.action === 'confirm') {
+        updateSession({ copyApproved: true });
+        await sendMessage(
+          bots.editor,
+          `✅ 카피 승인 받았어요 @주현대리. 아트 옵션 단계로 넘어갑니다.\n\n— 편집장`,
+        );
+        await proposeArtOptions();
+        break;
+      }
+
+      // 수정 메모 누적
+      if (f.action === 'note_add') {
+        const pending = { ...(s.pendingNotes || {}) };
+        const key = 'copy';
+        if (!pending[key]) pending[key] = [];
+        if (f.notes.length > 0) pending[key].push(...f.notes);
+        updateSession({ pendingNotes: pending });
+
+        const total = (pending[key] || []).length;
+        const recent = (pending[key] || []).slice(-3).join(' / ');
+        await sendMessage(
+          bots.editor,
+          `📝 메모했어요. 카피 수정 누적 **${total}건**: ${recent}${total > 3 ? ' …' : ''}
+
+계속 주세요. 다 끝나면 "**반영해**" / "**v2 뽑아**" — 한번에 반영해서 새 버전 만들게요.
+
+— 편집장`,
+        );
+        break;
+      }
+
+      // 누적된 메모 반영해서 v2 생성
+      if (f.action === 'apply_notes') {
+        const pending = s.pendingNotes || {};
+        const copyNotes = pending['copy'] || [];
+        if (copyNotes.length === 0) {
+          await sendMessage(
+            bots.editor,
+            `누적된 카피 수정 메모가 없어요. 구체적 수정 요구 주시면 쌓아뒀다가 반영해요.\n\n— 편집장`,
+          );
+          break;
+        }
+        const allNotes = [...(s.userNotes || []), ...copyNotes];
+        const nextPending = { ...pending };
+        delete nextPending['copy'];
+        updateSession({ userNotes: allNotes, pendingNotes: nextPending });
+
+        await sendMessage(
+          bots.editor,
+          `알겠어요 @주현대리. **${copyNotes.length}건** 반영해서 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
+${copyNotes.map((n) => `  • ${n}`).join('\n')}
+
+30~60초 걸려요.\n\n— 편집장`,
+        );
+
+        try {
+          const newCopy = await _generateCopyJson(getSession());
+          const nextVer = (s.copyRevCount || 1) + 1;
+          const vLabel = `v${nextVer}`;
+
+          // 저장
+          const now3 = new Date();
+          const ym3 = `${now3.getFullYear()}-${String(now3.getMonth() + 1).padStart(2, '0')}`;
+          const baseSlug3 = s.slug || `cardnews-${Date.now()}`;
+          const copyDir3 = path.join(paths.outputDir, ym3, baseSlug3, 'copy');
+          await fs.mkdir(copyDir3, { recursive: true });
+          await fs.writeFile(path.join(copyDir3, `copy-${vLabel}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
+
+          updateSession({ copyDraft: newCopy, copyRevCount: nextVer });
+          log.info('COPY_REVISE', `copy.ok ${vLabel} slides=${newCopy.slides.length}`);
+
+          await _presentCopyDraft(newCopy, vLabel);
+          await sendMessage(
+            bots.editor,
+            `@주현대리 카피 ${vLabel} 나왔어요. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+          );
+        } catch (e) {
+          log.error('COPY_REVISE', '재생성 실패', e);
+          await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주세요.\n\n— 편집장`);
+        }
+        break;
+      }
+
+      if (f.action === 'question' || f.questions.length > 0) {
+        await answerQuestionsAndReprompt(f.questions.length > 0 ? f.questions : [text], s, 'copy');
+        break;
+      }
+
+      // unclear — 사용법 재안내
+      await sendMessage(
+        bots.editor,
+        `@주현대리 지금 카피 검토 단계에요. 어떻게 할까요?
+  • "**3번 슬라이드 헤드 약해**" → 메모 누적
+  • "**반영해**" → v2 생성
+  • "**카피 OK**" / "**승인**" → 아트 옵션 단계로
+  • "**취소**"
+
+— 편집장`,
+      );
+      break;
+    }
+
     case STATES.AWAITING_OPTION: {
       const parsed = await parseOptionChoice(text, s);
 
@@ -1566,8 +1790,13 @@ async function generateOptionPreviews(s, options, audience) {
   const design = await loadCurrentDesign();
   const artSystem = await loadAgentSystem('art-director');
 
-  // 본문 첫 부분만 미리보기용으로
-  const sourceExcerpt = s.sourceText.slice(0, 2500);
+  // 승인된 카피가 있으면 그걸, 없으면 본문 발췌로 fallback
+  const copyForPreview = (s.copyDraft && Array.isArray(s.copyDraft.slides))
+    ? s.copyDraft.slides.slice(0, 3)  // cover + 본문 2개
+    : null;
+  const sourceExcerpt = copyForPreview
+    ? null
+    : s.sourceText.slice(0, 2500);
 
   // 이 카드뉴스의 전용 폴더 (slug 는 첫 호출 시 확보)
   const now = new Date();
@@ -1578,6 +1807,14 @@ async function generateOptionPreviews(s, options, audience) {
   if (!s.slug) updateSession({ slug: baseSlug });
 
   const tasks = options.map(async (opt) => {
+    const copyBlock = copyForPreview
+      ? `## 승인된 카피 (앞 3슬라이드 — **반드시 이 텍스트 그대로** 렌더링, 추가 창작·각색 금지)
+${JSON.stringify(copyForPreview, null, 2)}
+`
+      : `## 본문 발췌 (앞부분 — 미리보기용)
+${sourceExcerpt}
+`;
+
     const prompt = `미니 카드뉴스 미리보기(3슬라이드만)를 HTML 한 파일로 작성. 사용자가 이 스타일이 마음에 드는지 보고 결정할 수 있게.
 
 ## 스타일 (이 옵션의 정체성)
@@ -1592,13 +1829,11 @@ async function generateOptionPreviews(s, options, audience) {
 - 디자인 라이브러리 참고: ${design.name}
 ${design.content.slice(0, 800)}
 
-## 본문 발췌 (앞부분 — 미리보기용)
-${sourceExcerpt}
-
+${copyBlock}
 ## 요구사항
 - Swiper.js 11 vertical fade
 - Pretendard Variable + JetBrains Mono
-- 정확히 3슬라이드: 표지 + 본문 핵심 1 + 본문 핵심 2
+- 정확히 3슬라이드: 표지 + 본문 핵심 1 + 본문 핵심 2${copyForPreview ? ' (카피 JSON 순서 그대로)' : ''}
 - 위 스타일을 정확히 적용
 - 인터랙션 1~2개 동작 (설정한 인터랙션)
 - **PC 뷰**: 1280px 이상에서 여백·카드 그리드·타이포가 PC에 최적화
