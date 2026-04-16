@@ -32,7 +32,7 @@ function required(name) {
 
 export const env = {
   ANTHROPIC_API_KEY: required('ANTHROPIC_API_KEY'),
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '', // 이미지 생성용 (선택)
+  OPENAI_API_KEY: required('OPENAI_API_KEY'),  // 이미지 생성 + 카피 A/B 비교 (GPT-5) — 필수
   TELEGRAM_BOT_EDITOR: required('TELEGRAM_BOT_EDITOR'),
   TELEGRAM_BOT_COPY: required('TELEGRAM_BOT_COPY'),
   TELEGRAM_BOT_ART: required('TELEGRAM_BOT_ART'),
@@ -60,12 +60,14 @@ export const bots = {
   },
 };
 
-// Claude 모델 매핑 (역할별)
-// 주현대리 요청 (2026-04-16): 카피 품질 최우선 → Sonnet 자리 전부 Opus 로 상향
+// 모델 매핑 (역할별)
+// - 2026-04-16: 카피 품질 최우선 → Sonnet 자리 전부 Opus 로 상향
+// - 2026-04-16: 카피 A/B 비교를 위해 OpenAI GPT-5 병행
 export const models = {
-  light: 'claude-haiku-4-5-20251001',       // 라우팅, 파싱 같은 가벼운 작업 (현재 미사용)
-  main: 'claude-opus-4-6',                   // 카피/파싱/편집장 발화/아트 옵션 — 전부 Opus
-  heavy: 'claude-opus-4-6',                  // HTML 생성 (원래 Opus)
+  light: 'claude-haiku-4-5-20251001',       // 정의만 유지 (현재 미사용)
+  main: 'claude-opus-4-6',                   // 모든 Claude 작업 (파싱/대화/카피-A/아트/편집장/QA)
+  heavy: 'claude-opus-4-6',                  // HTML 생성
+  gpt: 'gpt-5',                              // 카피-B (OpenAI GPT-5, 비교용)
 };
 
 export const POLL_INTERVAL_MS = 2000;         // 2초 주기 getUpdates

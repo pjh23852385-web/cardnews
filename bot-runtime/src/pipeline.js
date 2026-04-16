@@ -7,6 +7,7 @@ import { bots, paths, models } from './config.js';
 import { callAgent } from './claude.js';
 import { loadAgentSystem, loadCurrentDesign } from './agents.js';
 import { sendMessage, sendTyping, sendDocument } from './telegram.js';
+import { callOpenAI } from './openai.js';
 import { STATES, newSession, getSession, updateSession, resetSession } from './state.js';
 import * as log from './logger.js';
 
@@ -55,13 +56,13 @@ function formatCopyForReview(copyJson, versionLabel = 'v1') {
   return lines.join('\n');
 }
 
-// 공용 카피 생성 — _runStyleBuild 와 handleAudienceAnswer 양쪽에서 사용
-async function _generateCopyJson(session) {
-  const copySystem = await loadAgentSystem('copywriter');
+// 공용 프롬프트 빌더 — Opus/GPT 공통
+async function _buildCopyPrompt(session) {
+  const system = await loadAgentSystem('copywriter');
   const notesBlock = (session.userNotes && session.userNotes.length > 0)
     ? `\n## 🌟 사용자 요구사항 (반드시 반영)\n${session.userNotes.map((n) => `- ${n}`).join('\n')}\n`
     : '';
-  const prompt = `카드뉴스 카피를 슬라이드별 JSON으로 뽑으세요. 스타일과 무관한 카피 공통본.
+  const user = `카드뉴스 카피를 슬라이드별 JSON으로 뽑으세요. 스타일과 무관한 카피 공통본.
 
 ## 컨텍스트
 - 오디언스: ${session.audience}
@@ -94,15 +95,81 @@ ${session.sourceText}
   ]
 }
 \`\`\``;
-  const res = await callAgent(copySystem, prompt, {
+  return { system, user };
+}
+
+// 공용 카피 생성 (Claude Opus) — _runStyleBuild 와 handleAudienceAnswer 양쪽에서 사용
+async function _generateCopyJson(session) {
+  const { system, user } = await _buildCopyPrompt(session);
+  const res = await callAgent(system, user, {
     model: models.main,
     maxTokens: 8000,
     json: true,
   });
   if (!res.json || !Array.isArray(res.json.slides)) {
-    throw new Error('카피 JSON 파싱 실패');
+    throw new Error('Opus 카피 JSON 파싱 실패');
   }
   return res.json;
+}
+
+// 카피 생성 (OpenAI GPT-5) — A/B 비교용
+async function _generateCopyJsonOpenAI(session) {
+  const { system, user } = await _buildCopyPrompt(session);
+  const res = await callOpenAI(system, user, {
+    model: models.gpt,
+    maxTokens: 8000,
+    json: true,
+  });
+  if (!res.json || !Array.isArray(res.json.slides)) {
+    throw new Error('GPT 카피 JSON 파싱 실패');
+  }
+  return res.json;
+}
+
+// 두 버전(Opus/GPT) 동시 제시 — 파일 첨부 2개 + 비교 요약 메시지
+async function _presentTwoCopyDrafts(opusJson, gptJson, versionLabel) {
+  const session = getSession();
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const baseSlug = session?.slug || `cardnews-${Date.now()}`;
+  const copyDir = path.join(paths.outputDir, ym, baseSlug, 'copy');
+  await fs.mkdir(copyDir, { recursive: true });
+
+  // 각 버전 저장 + 포맷
+  const opusFormatted = formatCopyForReview(opusJson, `${versionLabel} · Opus`);
+  const gptFormatted = formatCopyForReview(gptJson, `${versionLabel} · GPT`);
+  const opusMdPath = path.join(copyDir, `copy-${versionLabel}-opus.md`);
+  const gptMdPath = path.join(copyDir, `copy-${versionLabel}-gpt.md`);
+  await fs.writeFile(opusMdPath, opusFormatted, 'utf-8');
+  await fs.writeFile(gptMdPath, gptFormatted, 'utf-8');
+  await fs.writeFile(path.join(copyDir, `copy-${versionLabel}-opus.json`), JSON.stringify(opusJson, null, 2), 'utf-8');
+  await fs.writeFile(path.join(copyDir, `copy-${versionLabel}-gpt.json`), JSON.stringify(gptJson, null, 2), 'utf-8');
+
+  // 비교 요약 메시지 (표지 + 첫 챕터 헤드라인 나란히)
+  const opusCover = opusJson.slides?.[0] || {};
+  const gptCover = gptJson.slides?.[0] || {};
+  const opusFirst = opusJson.slides?.find((sl) => sl.kind === 'body' || sl.headline) || {};
+  const gptFirst = gptJson.slides?.find((sl) => sl.kind === 'body' || sl.headline) || {};
+
+  const compareMsg = `📝 **카피 두 버전 나왔어요 (${versionLabel})** — 비교해보세요.
+
+━━ **A · Claude Opus** (총 ${opusJson.slides?.length || '?'}장) ━━
+표지: ${opusCover.headline || '(없음)'}
+첫 본문: ${opusFirst.headline || '(없음)'}
+
+━━ **B · GPT-5** (총 ${gptJson.slides?.length || '?'}장) ━━
+표지: ${gptCover.headline || '(없음)'}
+첫 본문: ${gptFirst.headline || '(없음)'}
+
+두 파일 첨부 드려요 — 다 열어보시고 어느 쪽으로 갈지 "**A**" 또는 "**B**" 로 답해주세요.
+
+— 카피`;
+
+  await sendMessage(bots.copywriter, compareMsg);
+  try { await sendDocument(bots.copywriter, opusMdPath, `A · Claude Opus (${versionLabel})`); }
+  catch (e) { log.error('COPY_PRESENT', 'Opus sendDocument 실패', e); }
+  try { await sendDocument(bots.copywriter, gptMdPath, `B · GPT-5 (${versionLabel})`); }
+  catch (e) { log.error('COPY_PRESENT', 'GPT sendDocument 실패', e); }
 }
 
 // 생성된 카피를 주현대리에게 제시 — 길면 파일 첨부, 짧으면 메시지
@@ -180,10 +247,11 @@ async function parseFinalChoice(text, session) {
 응답 형식 (JSON만):
 \`\`\`json
 {
-  "action": "confirm|note_add|apply_notes|rollback|cancel|question|unclear",
+  "action": "confirm|note_add|apply_notes|rollback|cancel|question|select_variant|unclear",
   "final_id": "①|②|③|null",
   "final_version": 2,
   "revise_id": "①|②|③|null",
+  "variant": "opus|gpt|null",
   "notes": ["수정 내용"],
   "questions": ["질문"],
   "unrelated": false
@@ -214,6 +282,10 @@ async function parseFinalChoice(text, session) {
 
 - "**rollback**" = 예전 버전 재전송. 예: "① v1 다시 봐" → final_id + final_version + action="rollback"
 
+- "**select_variant**" = 카피 A/B(Opus/GPT) 중 선택. 오직 카피 검토 단계에서만 의미 있음.
+  • "A" / "Opus" / "A로 가자" / "클로드" / "왼쪽" / "첫번째" → action="select_variant", variant="opus"
+  • "B" / "GPT" / "B로" / "챗지피티" / "오른쪽" / "두번째" → action="select_variant", variant="gpt"
+
 - "**cancel**" = "취소" / "리셋" / "처음부터"
 
 - "**question**" = 순수 질문 (수정·배포 의도 없음). "이거 한국어로 나와?" / "폰트 뭐 썼어?"
@@ -230,17 +302,18 @@ ${versionsLine || '(없음)'}
     if (json) {
       const validIds = ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨'];
       return {
-        action: ['confirm', 'note_add', 'apply_notes', 'rollback', 'cancel', 'question', 'unclear'].includes(json.action) ? json.action : 'unclear',
+        action: ['confirm', 'note_add', 'apply_notes', 'rollback', 'cancel', 'question', 'select_variant', 'unclear'].includes(json.action) ? json.action : 'unclear',
         finalId: validIds.includes(json.final_id) ? json.final_id : null,
         finalVersion: Number.isInteger(json.final_version) ? json.final_version : null,
         reviseId: validIds.includes(json.revise_id) ? json.revise_id : null,
+        variant: ['opus', 'gpt'].includes(json.variant) ? json.variant : null,
         notes: Array.isArray(json.notes) ? json.notes.filter(Boolean) : [],
         questions: Array.isArray(json.questions) ? json.questions.filter(Boolean) : [],
         unrelated: !!json.unrelated,
       };
     }
   } catch {}
-  return { action: 'unclear', finalId: null, finalVersion: null, reviseId: null, notes: [], questions: [], unrelated: false };
+  return { action: 'unclear', finalId: null, finalVersion: null, reviseId: null, variant: null, notes: [], questions: [], unrelated: false };
 }
 
 /**
@@ -577,67 +650,97 @@ export async function handleAudienceAnswer(rawAnswer) {
     model: models.main,
     maxTokens: 400,
   });
-  await sendMessage(bots.editor, `📋 톤 브리핑\n${briefing}\n\n카피 먼저 뽑고 내용 합의한 뒤에 아트 옵션 갈게요.\n\n— 편집장`);
+  await sendMessage(bots.editor, `📋 톤 브리핑\n${briefing}\n\n카피 먼저 두 버전 병렬로 뽑고(A·B 비교) 내용 합의한 뒤에 아트 옵션 갈게요.\n\n— 편집장`);
 
   // 카피라이터 착수 리액션
-  await sendMessage(bots.copywriter, `받았어요. 본문·오디언스 보고 카피 뽑을게요.\n\n— 카피`);
+  await sendMessage(bots.copywriter, `받았어요. **Claude Opus**와 **GPT-5** 두 버전 동시에 뽑습니다 (약 60초).\n\n— 카피`);
 
-  // 공용 카피 생성 함수 호출
+  // 병렬 호출 (Opus + GPT) — 한쪽 실패해도 다른 쪽으로 진행
   await typing(bots.copywriter);
-  let copyJson;
-  try {
-    copyJson = await _generateCopyJson(s);
-  } catch (e) {
-    log.error('COPY_DRAFT', '카피 생성 실패', e);
+  log.info('COPY_DRAFT', 'dual.start — Opus + GPT parallel');
+  const [opusR, gptR] = await Promise.allSettled([
+    _generateCopyJson(s),
+    _generateCopyJsonOpenAI(s),
+  ]);
+  const opusJson = opusR.status === 'fulfilled' ? opusR.value : null;
+  const gptJson = gptR.status === 'fulfilled' ? gptR.value : null;
+  log.info('COPY_DRAFT', `dual.done opus=${opusJson ? 'ok' : 'fail'} gpt=${gptJson ? 'ok' : 'fail'}`);
+
+  if (!opusJson && !gptJson) {
+    log.error('COPY_DRAFT', '양쪽 LLM 모두 실패', opusR.reason || gptR.reason);
     await sendMessage(
       bots.editor,
-      `⚠️ 카피 생성 실패: ${String(e.message || e).slice(0, 150)}. 소스를 다시 던져주세요.\n\n— 편집장`,
+      `⚠️ 카피 생성 실패 (양쪽 LLM 모두): ${String((opusR.reason || gptR.reason)?.message || '').slice(0, 150)}. 소스 다시 던져주세요.\n\n— 편집장`,
     );
     resetSession();
     return;
   }
 
-  // 카피 JSON 저장
-  const now2 = new Date();
-  const ym2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
   const baseSlug = s.slug || `cardnews-${Date.now()}`;
-  const copyDir = path.join(paths.outputDir, ym2, baseSlug, 'copy');
-  await fs.mkdir(copyDir, { recursive: true });
-  await fs.writeFile(path.join(copyDir, 'copy-v1.json'), JSON.stringify(copyJson, null, 2), 'utf-8');
 
-  updateSession({
-    state: STATES.AWAITING_COPY_APPROVAL,
-    copyDraft: copyJson,
-    copyRevCount: 1,
-    copyApproved: false,
-    slug: baseSlug,
-  });
-  log.state(STATES.AWAITING_AUDIENCE, STATES.AWAITING_COPY_APPROVAL, `copy.v1 slides=${copyJson.slides.length}`);
+  // 둘 다 성공 → A/B 제시
+  if (opusJson && gptJson) {
+    updateSession({
+      state: STATES.AWAITING_COPY_APPROVAL,
+      copyDrafts: { opus: opusJson, gpt: gptJson },
+      copyDraft: null,
+      chosenProvider: null,
+      copyRevCount: 1,
+      copyApproved: false,
+      slug: baseSlug,
+    });
+    log.state(STATES.AWAITING_AUDIENCE, STATES.AWAITING_COPY_APPROVAL, `copy.v1 A/B opus=${opusJson.slides.length} gpt=${gptJson.slides.length}`);
 
-  // 카피 제시
-  await _presentCopyDraft(copyJson, 'v1');
+    await _presentTwoCopyDrafts(opusJson, gptJson, 'v1');
 
-  // 편집장 체크포인트 ①.5 안내
-  await sendMessage(
-    bots.editor,
-    `@주현대리 카피 초안 받으셨어요 (v1, 총 ${copyJson.slides.length}장).
+    await sendMessage(
+      bots.editor,
+      `@주현대리 카피 **두 버전** (A · Opus / B · GPT-5) 받으셨어요.
 
-🔍 **체크 포인트**
+🔍 **비교 체크**
   ✓ 헤드라인 방향 (돌직구·임팩트)
   ✓ 시사점: "${audience} 이 지금 뭘 해야 하는가" 명확한지
   ✓ 슬라이드 개수와 순서
   ✓ 데이터·숫자 강조
 
-✏️ **수정은 자유롭게 쌓아두세요** (재생성 안 함):
-  • "3번 슬라이드 헤드라인 더 강하게"
-  • "데이터 파트 축소"
-  → 메모로 쌓여요. 토큰 안 써요.
+👉 먼저 **A / B 중 하나** 골라주세요: "**A**" / "**B**" / "**Opus**" / "**GPT**"
+선택 후 수정 메모 쌓고 → "반영해" (v2) → "카피 OK" (아트 단계로) 순서로 진행.
 
-🔄 **다 쌓으면 반영** (그때 v2 뽑아요, ~30초):
-  • "**반영해**" / "**v2 뽑아줘**" / "**다시 만들어**"
+— 편집장 (체크포인트 ①.5a — 버전 선택)`,
+    );
+    return;
+  }
 
-🚀 **만족이면 승인** (아트 옵션 단계로 진행):
-  • "**카피 OK**" / "**승인**" / "**카피 진행**"
+  // 한쪽만 성공 → 자동 채택
+  const chosen = opusJson ? 'opus' : 'gpt';
+  const chosenJson = opusJson || gptJson;
+  const failedSide = opusJson ? 'GPT-5' : 'Claude Opus';
+
+  updateSession({
+    state: STATES.AWAITING_COPY_APPROVAL,
+    copyDrafts: { opus: opusJson, gpt: gptJson },  // 하나는 null
+    copyDraft: chosenJson,
+    chosenProvider: chosen,
+    copyRevCount: 1,
+    copyApproved: false,
+    slug: baseSlug,
+  });
+  log.state(STATES.AWAITING_AUDIENCE, STATES.AWAITING_COPY_APPROVAL, `copy.v1 single=${chosen} (${failedSide} failed)`);
+
+  // 저장
+  const now2 = new Date();
+  const ym2 = `${now2.getFullYear()}-${String(now2.getMonth() + 1).padStart(2, '0')}`;
+  const copyDir = path.join(paths.outputDir, ym2, baseSlug, 'copy');
+  await fs.mkdir(copyDir, { recursive: true });
+  await fs.writeFile(path.join(copyDir, `copy-v1-${chosen}.json`), JSON.stringify(chosenJson, null, 2), 'utf-8');
+
+  await sendMessage(bots.copywriter, `⚠️ ${failedSide} 버전은 실패해서 ${chosen === 'opus' ? 'Claude Opus' : 'GPT-5'} 버전 하나로 진행해요.\n\n— 카피`);
+  await _presentCopyDraft(chosenJson, 'v1');
+  await sendMessage(
+    bots.editor,
+    `@주현대리 카피 초안 (v1, 총 ${chosenJson.slides.length}장).
+
+✏️ 수정 메모 쌓고 "반영해" → v2. 만족이면 "카피 OK" → 아트 단계.
 
 — 편집장 (체크포인트 ①.5)`,
   );
@@ -1467,7 +1570,7 @@ export async function handleUserText(text) {
 
     case STATES.AWAITING_COPY_APPROVAL: {
       const f = await parseFinalChoice(text, s);
-      log.info('COPY_PARSE', `action=${f.action} notes=${f.notes.length}`);
+      log.info('COPY_PARSE', `action=${f.action} variant=${f.variant} chosen=${s.chosenProvider} notes=${f.notes.length}`);
 
       if (f.action === 'cancel') {
         await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
@@ -1475,12 +1578,50 @@ export async function handleUserText(text) {
         break;
       }
 
+      // ── A/B 선택 전 단계 (copyDrafts 둘 다 있고 chosenProvider 미선택) ──
+      const bothAvailable = s.copyDrafts && s.copyDrafts.opus && s.copyDrafts.gpt;
+      if (bothAvailable && !s.chosenProvider) {
+        if (f.action === 'select_variant' && f.variant) {
+          const chosen = s.copyDrafts[f.variant];
+          if (!chosen) {
+            await sendMessage(bots.editor, `⚠️ ${f.variant === 'opus' ? 'Opus' : 'GPT'} 버전이 세션에 없어요. 다른 쪽 고르세요.\n\n— 편집장`);
+            break;
+          }
+          updateSession({ copyDraft: chosen, chosenProvider: f.variant });
+          log.info('COPY_SELECT', `chosen=${f.variant} slides=${chosen.slides.length}`);
+          const label = f.variant === 'opus' ? 'Claude Opus' : 'GPT-5';
+          await sendMessage(
+            bots.editor,
+            `✅ **${label}** 버전 선택 받았어요 @주현대리.
+
+이제 수정 메모 쌓아두시고, 만족이면 "**카피 OK**" — 아트 옵션 단계로 넘어갈게요.
+
+— 편집장 (체크포인트 ①.5b)`,
+          );
+          break;
+        }
+        // A/B 중 아직 선택 안 함
+        await sendMessage(
+          bots.editor,
+          `먼저 **A / B 중 하나** 골라주세요 @주현대리.
+  • "**A**" 또는 "**Opus**" → Claude Opus 버전으로
+  • "**B**" 또는 "**GPT**" → GPT-5 버전으로
+
+— 편집장 (체크포인트 ①.5a)`,
+        );
+        break;
+      }
+
       // "카피 OK"/"승인" → 아트 옵션 단계로 진행 (confirm 의미 전환)
       if (f.action === 'confirm') {
+        if (!s.copyDraft) {
+          await sendMessage(bots.editor, `카피가 아직 확정 안 됐어요. A/B 중 하나 먼저 골라주세요.\n\n— 편집장`);
+          break;
+        }
         updateSession({ copyApproved: true });
         await sendMessage(
           bots.editor,
-          `✅ 카피 승인 받았어요 @주현대리. 아트 옵션 단계로 넘어갑니다.\n\n— 편집장`,
+          `✅ 카피 승인 받았어요 @주현대리 (${s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5'} 기준). 아트 옵션 단계로 넘어갑니다.\n\n— 편집장`,
         );
         await proposeArtOptions();
         break;
@@ -1507,7 +1648,7 @@ export async function handleUserText(text) {
         break;
       }
 
-      // 누적된 메모 반영해서 v2 생성
+      // 누적된 메모 반영해서 v2 생성 (선택된 프로바이더만 재호출)
       if (f.action === 'apply_notes') {
         const pending = s.pendingNotes || {};
         const copyNotes = pending['copy'] || [];
@@ -1518,21 +1659,29 @@ export async function handleUserText(text) {
           );
           break;
         }
+        if (!s.chosenProvider) {
+          await sendMessage(bots.editor, `먼저 A/B 중 하나 골라주세요. 그 후에 수정 반영됩니다.\n\n— 편집장`);
+          break;
+        }
+
         const allNotes = [...(s.userNotes || []), ...copyNotes];
         const nextPending = { ...pending };
         delete nextPending['copy'];
         updateSession({ userNotes: allNotes, pendingNotes: nextPending });
 
+        const providerLabel = s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5';
         await sendMessage(
           bots.editor,
-          `알겠어요 @주현대리. **${copyNotes.length}건** 반영해서 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
+          `알겠어요 @주현대리. **${copyNotes.length}건** 반영해서 ${providerLabel} 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
 ${copyNotes.map((n) => `  • ${n}`).join('\n')}
 
 30~60초 걸려요.\n\n— 편집장`,
         );
 
         try {
-          const newCopy = await _generateCopyJson(getSession());
+          // 선택된 프로바이더로만 재생성
+          const regenerate = s.chosenProvider === 'opus' ? _generateCopyJson : _generateCopyJsonOpenAI;
+          const newCopy = await regenerate(getSession());
           const nextVer = (s.copyRevCount || 1) + 1;
           const vLabel = `v${nextVer}`;
 
@@ -1542,15 +1691,15 @@ ${copyNotes.map((n) => `  • ${n}`).join('\n')}
           const baseSlug3 = s.slug || `cardnews-${Date.now()}`;
           const copyDir3 = path.join(paths.outputDir, ym3, baseSlug3, 'copy');
           await fs.mkdir(copyDir3, { recursive: true });
-          await fs.writeFile(path.join(copyDir3, `copy-${vLabel}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
+          await fs.writeFile(path.join(copyDir3, `copy-${vLabel}-${s.chosenProvider}.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
 
           updateSession({ copyDraft: newCopy, copyRevCount: nextVer });
-          log.info('COPY_REVISE', `copy.ok ${vLabel} slides=${newCopy.slides.length}`);
+          log.info('COPY_REVISE', `copy.ok ${vLabel} provider=${s.chosenProvider} slides=${newCopy.slides.length}`);
 
           await _presentCopyDraft(newCopy, vLabel);
           await sendMessage(
             bots.editor,
-            `@주현대리 카피 ${vLabel} 나왔어요. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+            `@주현대리 ${providerLabel} 카피 ${vLabel} 나왔어요. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
           );
         } catch (e) {
           log.error('COPY_REVISE', '재생성 실패', e);

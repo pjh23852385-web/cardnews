@@ -91,7 +91,9 @@ export function newSession(initial = {}) {
     // 새 플로우 필드 (파일 첨부 + 복수 스타일 + 버전 관리)
     previewAttachments: null,     // [{id,name,path}] — ③ 단계 미니 프리뷰 파일 경로
     styleChoices: [],             // ['①','③'] — ④ 단계에서 주현대리가 고른 스타일들
-    copyDraft: null,              // 카피라이터가 뽑은 공통 카피 (JSON)
+    copyDraft: null,              // 선택된 최종 카피 (JSON) — A/B 선택 후 확정
+    copyDrafts: null,             // { opus, gpt } — v1 단계 두 버전 동시 보관 (A/B 비교)
+    chosenProvider: null,         // 'opus' | 'gpt' — A/B 중 주현대리가 고른 것
     copyApproved: false,          // 카피 승인 여부 (true 되어야 아트 옵션 단계 진입)
     copyRevCount: 0,              // 카피 수정 반복 횟수 (v1, v2, ...)
     fullVersions: {},             // { '①': [{v:1,path,builtAt}], '②': [{v:1,...},{v:2,...}], ... }
