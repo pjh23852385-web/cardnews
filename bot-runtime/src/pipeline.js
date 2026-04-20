@@ -1013,7 +1013,18 @@ ${copySummary}
 3개 옵션은 다음 4가지 축이 **모두 서로 달라야** 함:
 1. **색감 톤**: 3개가 전부 다른 톤. 다크만 3개 ❌ 화이트만 3개 ❌. 그라디언트, 파스텔, 네온, 레트로, 모노크롬 등 자유롭게.
 2. **레이아웃**: 카드 그리드 / 전면 타이포 / 매거진 컬럼 / 대시보드 / 신문형 / 카드 스택 / 세로 스크롤 등 **다양한 구조 풀**에서 골라.
-3. **인터랙션**: CSS 애니메이션·JS 효과를 **서로 다르게** (카운터업 / parallax / reveal / morph / typed / flip / 3D tilt 등)
+3. **인터랙션**: CSS 애니메이션·JS 효과를 **서로 다르게**. 아래 풀에서 골라:
+   - 기본: 카운터업 / fade-in 순차 / hover glow / 슬라이드 전환
+   - 중급: parallax scroll / reveal on scroll / morph SVG / typed 타이핑 / 카드 flip
+   - **고급 3D/애니메이션** (CDN 활용 가능):
+     · **Three.js 배경**: 파티클 필드 / 와이어프레임 기하 / 플로팅 메시 / 그라디언트 쉐이더 (three.min.js CDN)
+     · **CSS 3D Transform**: perspective + rotateX/Y/Z 카드 틸트 / 큐브 전환
+     · **Glassmorphism**: backdrop-filter:blur + 반투명 카드
+     · **GSAP ScrollTrigger**: 프로급 타임라인 애니메이션 (gsap CDN)
+     · **Lottie**: 벡터 아이콘 애니메이션 (lottie-web CDN)
+     · **SVG line-draw**: stroke-dashoffset 으로 그림 그려지는 효과
+     · **3D 카드 플립**: backface-visibility + rotateY(180deg) 호버/클릭
+   - 한 옵션에 인터랙션 2~3개 조합. **3개 옵션 중 최소 1개는 고급 3D/애니메이션 포함 권장**
 4. **레퍼런스**: 아래 풀에서 **이번에 안 쓴 것** 위주로 — 매번 같은 레퍼런스 쓰면 실패:
    Stripe / Apple / Linear / WIRED / Spotify / Bloomberg / Monocle / Notion / Figma / Dieter Rams / Swiss Design / Bauhaus / 무인양품 / 매거진B / 뉴욕타임스 / The Economist / TED / Nike / Airbnb / 카카오 브런치
 
@@ -1243,7 +1254,12 @@ ${JSON.stringify(copyJson, null, 2)}
 6. 상단 진행바 + 슬라이드 카운터 (01 / ${copyJson.slides.length})
 7. 위 스타일을 **정확히** 적용 (색·레이아웃·인터랙션 설정값)
 8. 인터랙션은 설정한 것 **반드시 작동** (CSS + JS 모두 구현)
-9. file:// 에서도 작동 (CDN 외부 리소스 OK)
+9. file:// 에서도 작동 (CDN 외부 리소스 OK). 사용 가능한 CDN:
+    - Swiper.js 11: \`https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js\`
+    - Three.js: \`https://cdn.jsdelivr.net/npm/three@latest/build/three.min.js\` (3D 배경·파티클·기하 효과)
+    - GSAP + ScrollTrigger: \`https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js\` (프로급 애니메이션)
+    - Lottie: \`https://cdn.jsdelivr.net/npm/lottie-web@5/build/player/lottie.min.js\` (벡터 애니메이션)
+    - Pretendard Variable, JetBrains Mono (폰트 CDN — 기존 그대로)
 10. **마지막 슬라이드 CTA — 실제 클릭 가능하게**:
     ${s.notionUrl
       ? `URL: ${s.notionUrl}
