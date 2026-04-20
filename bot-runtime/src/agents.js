@@ -18,14 +18,21 @@ export async function loadClaudeMd() {
 export async function loadCurrentDesign() {
   const designMd = await fs.readFile(paths.designMd, 'utf-8');
   const m = designMd.match(/current_style:\s*(\S+)/);
-  const styleName = m ? m[1] : 'voltagent';
-  const stylePath = path.join(paths.designsDir, `${styleName}.md`);
-  try {
-    const styleContent = await fs.readFile(stylePath, 'utf-8');
-    return { name: styleName, content: styleContent };
-  } catch {
-    return { name: styleName, content: '' };
+  const styleName = m ? m[1] : 'LIFEPLUS';
+
+  // 검색 순서: designs/{name}.md → designs/{name}/{name}-DESIGN.md → designs/{name}/DESIGN.md
+  const candidates = [
+    path.join(paths.designsDir, `${styleName}.md`),
+    path.join(paths.designsDir, styleName, `${styleName}-DESIGN.md`),
+    path.join(paths.designsDir, styleName, 'DESIGN.md'),
+  ];
+  for (const p of candidates) {
+    try {
+      const styleContent = await fs.readFile(p, 'utf-8');
+      return { name: styleName, content: styleContent };
+    } catch { /* 다음 후보 */ }
   }
+  return { name: styleName, content: '' };
 }
 
 export async function loadAllDesigns() {
