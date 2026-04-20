@@ -48,28 +48,92 @@ The overall impression is of a premium lifestyle app that happens to be financia
 
 ## 3. Typography Rules
 
-### Font Family
-- **Headline / UI**: `LIFEPLUS`, with fallback: `'Noto Sans KR', sans-serif`
-- **Body (Korean)**: `'Noto Sans KR'`, with fallback: `sans-serif`
-- **Body (English/Numbers)**: `LIFEPLUS`, with fallback: `'Inter', sans-serif`
+> Brand Identity Guideline v3.0 (2025년 8월) 기준
 
-*Note: LIFEPLUS is a custom proprietary typeface. Local font files are required:*
+### 서체 개요
+LIFEPLUS 전용 서체는 브랜드 아이덴티티 강화를 위해 개발. 로고타입을 기반으로 알아보기 쉽고 읽기 쉽게 디자인되었으며, 넓게 열린 형태의 글꼴로 친근함과 가독성을 향상. 국문/영문 모두 지원.
+
+### Font Family
+- **Headline / UI / Logo**: `LIFEPLUS` (전용 커스텀 서체, 로컬)
+- **Body (Korean fallback)**: `'Noto Sans KR'`, with fallback: `sans-serif`
+
+### @font-face (OTF + TTF 이중 소스)
 
 ```css
 @font-face {
   font-family: 'LIFEPLUS';
-  src: url('designs/LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Light.ttf') format('truetype');
+  src: url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Light.ttf') format('truetype'),
+       url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS OTF Light.otf') format('opentype');
   font-weight: 300;
+  font-style: normal;
 }
+
 @font-face {
   font-family: 'LIFEPLUS';
-  src: url('designs/LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Medium.ttf') format('truetype');
+  src: url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Medium.ttf') format('truetype'),
+       url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS OTF Medium.otf') format('opentype');
   font-weight: 500;
+  font-style: normal;
 }
+
 @font-face {
   font-family: 'LIFEPLUS';
-  src: url('designs/LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Bold.ttf') format('truetype');
+  src: url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS Bold.ttf') format('truetype'),
+       url('../LIFEPLUS_assets/LIFEPLUS_1.1.0/LIFEPLUS OTF Bold.otf') format('opentype');
   font-weight: 700;
+  font-style: normal;
+}
+```
+
+### Weight 별 용도 및 자간
+
+| Weight | 용도 | 자간 (단독 표기 시) | CSS letter-spacing |
+|--------|------|-------------------|-------------------|
+| **LIFEPLUS Bold (700)** | 로고타입, 제목, 이벤트명 | 150pt | `0.15em` |
+| **LIFEPLUS Medium (500)** | 소제목, 강조 텍스트 | 150pt | `0.15em` |
+| **LIFEPLUS Light (300)** | 서브텍스트, 본문, 이벤트 설명 | 100pt | `0.10em` |
+
+### 표기 규칙
+- **LIFEPLUS 단독 표기 시** → Bold 우선 적용, 자간 `0.15em`
+- **본문 내 일부로 사용 시** → 자간 적용 X (`letter-spacing: normal`)
+- **이벤트/행사 아이덴티티** → 이벤트명 Bold `0.15em` + 서브 Light `0.10em` 조합
+
+### CSS 유틸리티 클래스
+
+```css
+/* 로고타입 / 단독 표기 */
+.lifeplus-logo {
+  font-family: 'LIFEPLUS', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+/* 이벤트명 / 대제목 */
+.heading-bold {
+  font-family: 'LIFEPLUS', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+}
+
+/* 소제목 */
+.heading-medium {
+  font-family: 'LIFEPLUS', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+}
+
+/* 서브텍스트 / 이벤트 설명 */
+.body-light {
+  font-family: 'LIFEPLUS', sans-serif;
+  font-weight: 300;
+  letter-spacing: 0.10em;
+}
+
+/* 본문 (LIFEPLUS가 문장 일부로 사용될 때) */
+.body-text {
+  font-family: 'LIFEPLUS', 'Noto Sans KR', sans-serif;
+  font-weight: 400;
+  letter-spacing: normal;
 }
 ```
 
@@ -77,23 +141,24 @@ The overall impression is of a premium lifestyle app that happens to be financia
 
 | Role | Font | Size | Weight | Line Height | Letter Spacing | Notes |
 |------|------|------|--------|-------------|----------------|-------|
-| Display / Hero | LIFEPLUS | 48px (3rem) | 700 | 1.20 | -0.02em | Maximum impact, brand statement |
-| Section Heading | LIFEPLUS | 36px (2.25rem) | 700 | 1.25 | -0.02em | Major section anchors |
-| Sub-heading | LIFEPLUS | 28px (1.75rem) | 700 | 1.30 | -0.02em | Card titles, feature names |
-| Sub-heading Small | LIFEPLUS | 22px (1.375rem) | 500 | 1.35 | -0.02em | Minor section headers |
-| Body Large | LIFEPLUS | 18px (1.125rem) | 500 | 1.60 | -0.02em | Intro paragraphs, lead text |
-| Body Standard | Noto Sans KR | 16px (1rem) | 400 | 1.65 | -0.01em | Standard Korean body text |
-| Body Small | Noto Sans KR | 14px (0.875rem) | 400 | 1.55 | -0.01em | Compact body, descriptions |
-| Caption | Noto Sans KR | 13px (0.8125rem) | 400 | 1.45 | 0em | Metadata, timestamps |
-| Label | LIFEPLUS | 12px (0.75rem) | 500 | 1.30 | 0.02em | Badges, tags, small labels |
-| Number / Data | LIFEPLUS | varies | 700 | 1.10 | -0.03em | Financial figures, percentages |
+| Logo / Brand | LIFEPLUS | varies | 700 | 1.10 | 0.15em | 단독 표기, 로고타입 |
+| Display / Hero | LIFEPLUS | 48px (3rem) | 700 | 1.20 | 0.15em | 이벤트명, 대제목 |
+| Section Heading | LIFEPLUS | 36px (2.25rem) | 700 | 1.25 | 0.15em | 주요 섹션 앵커 |
+| Sub-heading | LIFEPLUS | 28px (1.75rem) | 500 | 1.30 | 0.15em | 소제목, 강조 |
+| Sub-heading Small | LIFEPLUS | 22px (1.375rem) | 500 | 1.35 | 0.15em | 부섹션 제목 |
+| Body Large | LIFEPLUS | 18px (1.125rem) | 300 | 1.60 | 0.10em | 서브텍스트, 리드 |
+| Body Standard | Noto Sans KR | 16px (1rem) | 400 | 1.65 | normal | 한국어 본문 |
+| Body Small | Noto Sans KR | 14px (0.875rem) | 400 | 1.55 | normal | 설명, 캡션 |
+| Caption | Noto Sans KR | 13px (0.8125rem) | 400 | 1.45 | normal | 메타데이터, 타임스탬프 |
+| Label | LIFEPLUS | 12px (0.75rem) | 500 | 1.30 | 0.15em | 배지, 태그 |
+| Number / Data | LIFEPLUS | varies | 700 | 1.10 | 0.15em | 금융 수치, 퍼센트 |
 
 ### Principles
-- **Brand font for impact, Noto Sans KR for readability**: LIFEPLUS font carries all headlines, numbers, and UI labels — creating instant brand recognition. Noto Sans KR handles extended Korean body text where readability over long passages matters more than brand presence.
-- **Bold (700) for headlines, Medium (500) for UI**: Clear two-tier weight system. Headlines shout, UI elements speak at a conversational level.
-- **Tight letter-spacing everywhere**: The consistent `-0.02em` across LIFEPLUS font creates a polished, slightly compressed feel that's distinctly modern Korean design.
-- **Generous body line-height**: Korean text at 1.60–1.65 line-height — more spacious than typical Korean web design, improving readability for financial content.
-- **Numbers get special treatment**: Financial figures use LIFEPLUS Bold at tighter letter-spacing (`-0.03em`) for maximum data density without sacrificing legibility.
+- **3단계 Weight 체계**: Bold(700) = 제목·로고, Medium(500) = 소제목·강조, Light(300) = 서브텍스트·본문. 공식 가이드라인 v3.0 준수.
+- **자간은 맥락에 따라 분기**: 단독 표기(로고, 제목) 시 `0.15em` 넓게, 본문 내 사용 시 `normal`. 이 구분이 브랜드 아이덴티티의 핵심.
+- **보조 폰트 Noto Sans KR**: LIFEPLUS 서체 미지원 영역(긴 한국어 본문) fallback. 읽기 쉬움 우선.
+- **Generous body line-height**: 한국어 본문 1.60–1.65. 금융 콘텐츠의 가독성을 위해 일반 웹보다 넉넉하게.
+- **이벤트 조합 패턴**: 이벤트명(Bold 0.15em) + 설명(Light 0.10em) 조합이 공식 아이덴티티 규칙.
 
 ## 4. Component Stylings
 
