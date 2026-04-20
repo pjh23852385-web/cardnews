@@ -16,6 +16,7 @@ export const paths = {
   claudeMd: path.join(PROJECT_ROOT, 'CLAUDE.md'),
   designMd: path.join(PROJECT_ROOT, 'design.md'),
   designsDir: path.join(PROJECT_ROOT, 'designs'),
+  designLibraryDir: path.resolve(PROJECT_ROOT, '..', '..', 'DESIGN-library-all'),
   sourcesDir: path.join(PROJECT_ROOT, 'sources'),
   outputDir: path.join(PROJECT_ROOT, 'output'),
   assetsDir: path.join(PROJECT_ROOT, 'assets'),

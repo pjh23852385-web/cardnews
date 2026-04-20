@@ -5,7 +5,7 @@ import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { bots, paths, models } from './config.js';
 import { callAgent } from './claude.js';
-import { loadAgentSystem, loadCurrentDesign } from './agents.js';
+import { loadAgentSystem, loadCurrentDesign, buildBrandCatalog, loadBrandDesign, resolveDesignIntent } from './agents.js';
 import * as tg from './telegram.js';
 import * as state from './state.js';
 import { STATES } from './state.js';
@@ -816,7 +816,10 @@ export async function handleAudienceAnswer(rawAnswer) {
   // 부가 요구는 session에 저장
   const allNotes = [...(s.userNotes || []), ...parsed.notes];
   const audience = parsed.audience || rawAnswer;  // 아래 프롬프트들에서 사용
-  updateSession({ audience, userNotes: allNotes });
+
+  // 디자인 브랜드 선호 파싱 (예: "경영진, 토스 느낌으로" → toss 저장)
+  const designPref = resolveDesignIntent(rawAnswer);
+  updateSession({ audience, userNotes: allNotes, ...(designPref ? { designPreference: designPref } : {}) });
 
   // 편집장 즉답 (사람처럼) — 부가 요구 ack 포함
   let ack = `알겠어요 @주현대리. **${parsed.audience || rawAnswer}** 로 확정할게요.`;
@@ -958,20 +961,42 @@ export async function proposeArtOptions() {
 
   await sendMessage(bots.artDirector, `받았어요, 편집장. 카피 보고 3가지 가져옵니다. 잠깐만요.\n\n— 아트`);
 
-  // 아트디렉터 3옵션 생성 (카피 기반)
+  // 아트디렉터 3옵션 생성 (카피 기반 + 브랜드 카탈로그 + Three.js 레퍼런스)
   await typing(bots.artDirector);
   const design = await loadCurrentDesign();
+  const catalog = await buildBrandCatalog();
   const artSystem = await loadAgentSystem('art-director');
   const userNotesText = (s.userNotes && s.userNotes.length > 0)
     ? `\n주현대리 추가 요구:\n${s.userNotes.map((n) => `- ${n}`).join('\n')}\n`
     : '';
+
+  // 사용자 디자인 선호 (세션에 저장된 것)
+  const designPref = s.designPreference;
+  let designPrefText = '없음 — 카피 톤/오디언스에 맞게 자유롭게 선택';
+  if (designPref && designPref.requestedBrands?.length > 0) {
+    designPrefText = `사용자 지정: ${designPref.requestedBrands.join(' + ')}${designPref.mixMode ? ' (믹스)' : ''}`;
+  }
+
   const copySummary = JSON.stringify(s.copyDraft, null, 2).slice(0, 6000);
   const artPrompt = `카드뉴스 카피가 이미 확정됐어. 이 카피의 **톤·구조·강조 포인트**에 최적화된 디자인×인터랙션 3옵션을 JSON으로만. 자연어 설명 일체 금지.
 
 오디언스: ${audience}
 ${userNotesText}
-현재 디자인 스타일 라이브러리: ${design.name}
-${design.content}
+
+## 🎨 사용 가능한 디자인 레퍼런스 라이브러리 (${catalog.cards.length}개 브랜드)
+아래 카탈로그에서 각 옵션에 어울리는 브랜드를 골라. reference_brands 에 명시하면 HTML 생성 시 해당 브랜드의 **실제 색상·폰트·컴포넌트 규격**이 자동으로 적용됨.
+
+\`\`\`
+brand | category | colors | mood
+${catalog.summary}
+\`\`\`
+
+## 사용자 디자인 선호
+${designPrefText}
+${designPref?.requestedBrands?.length > 0 ? '→ 최소 1개 옵션에 이 브랜드를 반영할 것.' : ''}
+
+## 기본 스타일 참고: ${design.name}
+${design.content.slice(0, 600)}
 
 확정 카피 (스타일은 이 내용을 담는 그릇):
 ${copySummary}
@@ -988,13 +1013,14 @@ ${copySummary}
     {
       "id": "①",
       "name": "감성적 이름 (예: 암실 호텔 다이닝 × Stripe 대시보드)",
-      "colors": "색감",
+      "reference_brands": ["stripe", "linear.app"],
+      "colors": "색감 (레퍼런스 브랜드의 실제 hex 코드 활용)",
       "layout": "레이아웃",
-      "interaction": "인터랙션",
+      "interaction": "인터랙션 (Three.js/GSAP/CSS 3D 등 구체적 기법)",
       "fits": "카피 특성과 매칭 이유"
     },
-    {"id": "②", "name": "...", "colors": "...", "layout": "...", "interaction": "...", "fits": "..."},
-    {"id": "③", "name": "...", "colors": "...", "layout": "...", "interaction": "...", "fits": "..."}
+    {"id": "②", "name": "...", "reference_brands": [...], "colors": "...", "layout": "...", "interaction": "...", "fits": "..."},
+    {"id": "③", "name": "...", "reference_brands": [...], "colors": "...", "layout": "...", "interaction": "...", "fits": "..."}
   ],
   "outro_line": "마무리 한 줄"
 }
@@ -1003,6 +1029,7 @@ ${copySummary}
 규칙:
 - JSON 블록 하나만. 앞뒤 아무 설명 없이.
 - options 정확히 3개. id는 ①/②/③ 유니코드.
+- **reference_brands**: 위 카탈로그에서 영감 받은 브랜드 1~2개 (영문 소문자, 카탈로그 name 그대로). 3개 옵션이 **서로 다른** 브랜드를 참조해야 함.
 - 아트 톤(ENTP, 조수용+배민 디자인팀)으로 자연스럽게 (JSON 필드 텍스트 안에서).
 
 ## ⚠️ 다양성 강제 — 매번 새로운 조합 (반복 금지)
@@ -1011,22 +1038,21 @@ ${copySummary}
 이 3개 조합은 이미 여러 번 나왔음. **완전히 새로운** 색감·레이아웃·레퍼런스로 만들어라.
 
 3개 옵션은 다음 4가지 축이 **모두 서로 달라야** 함:
-1. **색감 톤**: 3개가 전부 다른 톤. 다크만 3개 ❌ 화이트만 3개 ❌. 그라디언트, 파스텔, 네온, 레트로, 모노크롬 등 자유롭게.
+1. **색감 톤**: 3개가 전부 다른 톤. 다크만 3개 ❌ 화이트만 3개 ❌. 그라디언트, 파스텔, 네온, 레트로, 모노크롬 등 자유롭게. **카탈로그의 실제 hex 코드를 참고**하되, 그대로 쓸 필요 없이 영감으로 활용.
 2. **레이아웃**: 카드 그리드 / 전면 타이포 / 매거진 컬럼 / 대시보드 / 신문형 / 카드 스택 / 세로 스크롤 등 **다양한 구조 풀**에서 골라.
 3. **인터랙션**: CSS 애니메이션·JS 효과를 **서로 다르게**. 아래 풀에서 골라:
    - 기본: 카운터업 / fade-in 순차 / hover glow / 슬라이드 전환
    - 중급: parallax scroll / reveal on scroll / morph SVG / typed 타이핑 / 카드 flip
-   - **고급 3D/애니메이션** (CDN 활용 가능):
-     · **Three.js 배경**: 파티클 필드 / 와이어프레임 기하 / 플로팅 메시 / 그라디언트 쉐이더 (three.min.js CDN)
+   - **고급 3D/애니메이션** (CDN 활용 — https://threejs.org/examples/ 참고):
+     · **Three.js 배경**: 파티클 웨이브(webgl_points_waves) / 쉐이더 그라디언트(webgl_shader) / 네트워크 그래프(webgl_buffergeometry_drawrange) / 기하 회전(webgl_geometries) / 블룸 후처리(webgl_postprocessing_unreal_bloom)
+     · **Three.js 오브젝트**: 3D 텍스트(webgl_geometry_text) / 반사 구체(webgl_materials_envmaps) / 인터랙티브 큐브(webgl_interactive_cubes) / 지구본(webgl_materials_normalmap + 텍스처)
+     · **Three.js 전환**: 슬라이드↔카메라 연동(camera.position.lerp) / 오브젝트 모핑(webgl_morphtargets) / 안개 밀도 변화 / RGB shift 후처리
      · **CSS 3D Transform**: perspective + rotateX/Y/Z 카드 틸트 / 큐브 전환
-     · **Glassmorphism**: backdrop-filter:blur + 반투명 카드
-     · **GSAP ScrollTrigger**: 프로급 타임라인 애니메이션 (gsap CDN)
+     · **Glassmorphism + Three.js**: backdrop-filter:blur 반투명 카드 + Three.js 배경 canvas 레이어링
+     · **GSAP**: 프로급 타임라인(gsap CDN) + ScrollTrigger + 카운터업
      · **Lottie**: 벡터 아이콘 애니메이션 (lottie-web CDN)
-     · **SVG line-draw**: stroke-dashoffset 으로 그림 그려지는 효과
-     · **3D 카드 플립**: backface-visibility + rotateY(180deg) 호버/클릭
-   - 한 옵션에 인터랙션 2~3개 조합. **3개 옵션 중 최소 1개는 고급 3D/애니메이션 포함 권장**
-4. **레퍼런스**: 아래 풀에서 **이번에 안 쓴 것** 위주로 — 매번 같은 레퍼런스 쓰면 실패:
-   Stripe / Apple / Linear / WIRED / Spotify / Bloomberg / Monocle / Notion / Figma / Dieter Rams / Swiss Design / Bauhaus / 무인양품 / 매거진B / 뉴욕타임스 / The Economist / TED / Nike / Airbnb / 카카오 브런치
+     · **SVG line-draw**: stroke-dashoffset 으로 차트/아이콘 그려지는 효과
+   - 한 옵션에 인터랙션 2~3개 조합. **3개 옵션 중 최소 1개는 Three.js 3D 효과 포함 필수**
 
 **이번 시도 시드**: ${Date.now() % 997} (이 숫자에서 영감 — 직접적으로 쓸 필요 없지만 이전 제안과 같아지지 않도록 상상력의 출발점으로 활용)
 
@@ -1217,6 +1243,15 @@ async function _runStyleBuild(choices, typingInterval) {
   // ── 2) 스타일별 풀 HTML 병렬 생성 ─────────────────────
   const design = await loadCurrentDesign();
   const artSystem = await loadAgentSystem('art-director');
+  // Three.js 레퍼런스 로드 (인터랙션 기법 참고용)
+  let threejsRef = '';
+  try {
+    const tjPath = path.join(paths.designsDir, 'threejs.md');
+    const tjContent = await fs.readFile(tjPath, 'utf-8');
+    // 조합 프리셋 섹션만 추출 (토큰 절약)
+    const presetMatch = tjContent.match(/## E\. 조합 프리셋[\s\S]*/);
+    threejsRef = presetMatch ? presetMatch[0].slice(0, 1500) : tjContent.slice(0, 1500);
+  } catch { /* threejs.md 없으면 무시 */ }
 
   const now = new Date();
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -1230,6 +1265,20 @@ async function _runStyleBuild(choices, typingInterval) {
     const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
 
     // ── A) HTML v0 생성 ───────────────────────────────
+    // reference_brands 에서 실제 DESIGN.md 로드
+    let brandRefBlock = `## 기본 디자인 참고: ${design.name}\n${design.content.slice(0, 800)}`;
+    const refBrands = opt.reference_brands || [];
+    if (refBrands.length > 0) {
+      const brandSections = [];
+      for (const bName of refBrands.slice(0, 2)) {
+        const bd = await loadBrandDesign(bName);
+        if (bd) brandSections.push(`### ${bd.name} (${bd.source})\n${bd.content.slice(0, 4000)}`);
+      }
+      if (brandSections.length > 0) {
+        brandRefBlock = `## 디자인 레퍼런스 (이 브랜드의 실제 색상·폰트·컴포넌트 값을 적극 활용)\n${brandSections.join('\n\n')}`;
+      }
+    }
+
     const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 — 카피는 고정). 한 파일 완성본.
 
 ## 이 옵션의 스타일 정체성
@@ -1238,9 +1287,11 @@ async function _runStyleBuild(choices, typingInterval) {
 - 레이아웃: ${opt.layout}
 - 인터랙션: ${opt.interaction}
 - 어울림: ${opt.fits}
+- 참조 브랜드: ${refBrands.join(', ') || design.name}
 
-## 디자인 라이브러리 참고: ${design.name}
-${design.content.slice(0, 1200)}
+${brandRefBlock}
+
+${threejsRef ? `## Three.js 인터랙션 레퍼런스 (CDN 활용 가능)\n${threejsRef}` : ''}
 
 ## 카피 (공통 — 이걸 슬라이드로 렌더링)
 ${JSON.stringify(copyJson, null, 2)}
@@ -1553,13 +1604,27 @@ async function _runBuilding(choice, typingInterval) {
   const design = await loadCurrentDesign();
   const artSystem = await loadAgentSystem('art-director');
 
+  // 선택된 옵션의 reference_brands 로 실제 DESIGN.md 로드
+  const selectedOpt = (s.options || []).find(o => o.id === choice) || {};
+  const refBrands = selectedOpt.reference_brands || [];
+  let designRefBlock = `- **디자인 스타일**: ${design.name}\n${design.content}`;
+  if (refBrands.length > 0) {
+    const parts = [];
+    for (const bName of refBrands.slice(0, 2)) {
+      const bd = await loadBrandDesign(bName);
+      if (bd) parts.push(`### ${bd.name} (${bd.source})\n${bd.content.slice(0, 4000)}`);
+    }
+    if (parts.length > 0) {
+      designRefBlock = `## 디자인 레퍼런스 (이 브랜드의 실제 색상·폰트·컴포넌트 값을 적극 활용)\n${parts.join('\n\n')}`;
+    }
+  }
+
   const htmlPrompt = `카드뉴스 HTML을 생성하세요. 통째로 한 파일 완성본.
 
 ## 컨텍스트
 - **오디언스**: ${s.audience}
 - **선택된 옵션**: ${choice} (${JSON.stringify(s.options)})
-- **디자인 스타일**: ${design.name}
-${design.content}
+${designRefBlock}
 - **노션 URL**: ${s.notionUrl || '없음'}
 ${(s.userNotes && s.userNotes.length > 0) ? `\n## 🌟 사용자 추가 요구사항 (반드시 반영)\n${s.userNotes.map((n) => `- ${n}`).join('\n')}\n` : ''}
 
@@ -1801,6 +1866,15 @@ export async function handleUserText(text) {
       await sendMessage(botObj, r.text);
     }
     return;
+  }
+
+  // 모든 단계에서 디자인 브랜드 선호 캡처 (예: "토스 느낌으로" 같은 지시를 언제든 가능)
+  if (!s.designPreference) {
+    const designPref = resolveDesignIntent(text);
+    if (designPref) {
+      updateSession({ designPreference: designPref });
+      log.info('DESIGN_PREF', `brands=${designPref.requestedBrands.join(',')} mix=${designPref.mixMode}`);
+    }
   }
 
   // 상태에 따라 라우팅
@@ -2303,8 +2377,19 @@ ${sourceExcerpt}
 
 ## 컨텍스트
 - 오디언스: ${audience}
-- 디자인 라이브러리 참고: ${design.name}
-${design.content.slice(0, 800)}
+- 참조 브랜드: ${(opt.reference_brands || []).join(', ') || design.name}
+${await (async () => {
+      const refs = opt.reference_brands || [];
+      if (refs.length > 0) {
+        const parts = [];
+        for (const b of refs.slice(0, 2)) {
+          const bd = await loadBrandDesign(b);
+          if (bd) parts.push(`### ${bd.name}\n${bd.content.slice(0, 2000)}`);
+        }
+        if (parts.length > 0) return `## 디자인 레퍼런스\n${parts.join('\n\n')}`;
+      }
+      return `- 디자인 라이브러리 참고: ${design.name}\n${design.content.slice(0, 800)}`;
+    })()}
 
 ${copyBlock}
 ## 요구사항
