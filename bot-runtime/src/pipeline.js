@@ -2467,15 +2467,15 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
   updateSession({ options: mergedOptions });
 
   if (newPreviews.length > 0) {
-    const lines = [`🎨 새 미리보기 나왔어요 (${targetsLabel}):`];
-    newPreviews.forEach((p) => {
-      lines.push(`${p.id} ${p.name}\n   👉 ${p.url}`);
-    });
-    if (keepIds.length > 0) {
-      lines.push('');
-      lines.push(`※ ${keepIds.join('·')} 는 기존 미리보기 그대로입니다.`);
+    await sendMessage(bots.artDirector, `🎨 새 미리보기 ${newPreviews.length}개 첨부 드려요 — 클릭해서 열어보세요.${keepIds.length > 0 ? `\n※ ${keepIds.join('·')} 는 기존 미리보기 그대로.` : ''}\n\n— 아트`);
+    for (const p of newPreviews) {
+      try {
+        await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`);
+      } catch (e) {
+        log.error('REGEN_ATTACH', `sendDocument 실패 id=${p.id}`, e);
+      }
     }
-    await sendMessage(bots.artDirector, lines.join('\n\n'));
+    updateSession({ previewAttachments: [...(getSession()?.previewAttachments || []), ...newPreviews] });
   }
 
   await sendMessage(

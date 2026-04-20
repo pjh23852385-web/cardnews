@@ -86,4 +86,4 @@ export const models = {
 };
 
 export const POLL_INTERVAL_MS = 2000;         // 2초 주기 getUpdates
-export const SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2시간 무응답 → 세션 초기화
+export const SESSION_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24시간 무응답 → 세션 초기화 (점심·외출 대비)
