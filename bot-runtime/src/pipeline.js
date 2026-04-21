@@ -2008,13 +2008,61 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
           );
           break;
         }
-        // A/B 중 아직 선택 안 함
+        // A/B 선택 전이지만 수정 지시(note_add)나 재생성(apply_notes) 요청이면 수용
+        // → 양쪽 다 참고해서 재생성 (Opus 기본)
+        if (f.action === 'note_add' || f.action === 'apply_notes') {
+          // 수정 지시를 누적하고 Opus 기본 선택 후 재생성
+          const allNotes = [...(s.userNotes || []), ...f.notes];
+          updateSession({ copyDraft: s.copyDrafts.opus, chosenProvider: 'opus', userNotes: allNotes });
+          log.info('COPY_FEEDBACK_BEFORE_AB', `action=${f.action} notes=${f.notes.length} auto-select=opus`);
+
+          await sendMessage(
+            bots.editor,
+            `📝 @주현대리 피드백 받았어요. A·B 둘 다 참고해서 **Opus 카피 v${(s.copyRevCount || 1) + 1}**로 다시 뽑을게요. 30~60초 걸립니다.
+
+> ${f.notes.join(' / ').slice(0, 200)}
+
+— 편집장`,
+          );
+
+          try {
+            const cur = getSession();
+            const refOpts = {
+              referenceDrafts: { opus: cur.copyDrafts?.opus, gpt: cur.copyDrafts?.gpt },
+            };
+            const newCopy = await _generateCopyJson(cur, refOpts);
+            const nextVer = (cur.copyRevCount || 1) + 1;
+            updateSession({ copyDraft: newCopy, copyRevCount: nextVer });
+            log.info('COPY_REGEN_BEFORE_AB', `ok v${nextVer} slides=${newCopy.slides.length}`);
+
+            const vLabel = `v${nextVer}`;
+            const now4 = new Date();
+            const ym4 = `${now4.getFullYear()}-${String(now4.getMonth() + 1).padStart(2, '0')}`;
+            const baseSlug4 = cur.slug || `cardnews-${Date.now()}`;
+            const copyDir4 = path.join(_groupOutputDir(), ym4, baseSlug4, 'copy');
+            await fs.mkdir(copyDir4, { recursive: true });
+            await fs.writeFile(path.join(copyDir4, `copy-${vLabel}-opus.json`), JSON.stringify(newCopy, null, 2), 'utf-8');
+
+            await _presentCopyDraft(newCopy, vLabel);
+            await sendMessage(
+              bots.editor,
+              `@주현대리 피드백 반영한 카피 ${vLabel} 나왔어요 (${newCopy.slides.length}장). 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**".\n\n— 편집장`,
+            );
+          } catch (e) {
+            log.error('COPY_REGEN_BEFORE_AB', '재생성 실패', e);
+            await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 시도해주세요.\n\n— 편집장`);
+          }
+          break;
+        }
+
+        // 그 외 — A/B 선택 안내
         await sendMessage(
           bots.editor,
           `먼저 **A / B 중 하나** 골라주세요 @주현대리.
   • "**A**" 또는 "**Opus**" → Claude Opus 버전으로
   • "**B**" 또는 "**GPT**" → GPT-5 버전으로
   • 또는 **"A 베이스로 B의 X 추가"** 처럼 합본 지시 함께 주셔도 OK (바로 v2 생성)
+  • 또는 **수정 피드백** ("내용 더 넣어줘", "장표 수 늘려") → 자동으로 재생성
 
 — 편집장 (체크포인트 ①.5a)`,
         );
