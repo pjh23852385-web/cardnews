@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>중국 AI, 토큰 전쟁의 새 승자</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#1a1916;
+--bg-surface:#222220;
+--terracotta:#c96442;
+--terracotta-glow:rgba(201,100,66,0.35);
+--text-primary:#f5f4ed;
+--text-secondary:#b0afa8;
+--text-muted:#5e5d59;
+--text-dim:#87867f;
+--border:rgba(94,93,89,0.25);
+--glass-bg:rgba(30,30,28,0.55);
+--glass-border:rgba(245,244,237,0.08);
+--fs-xs:clamp(11px,1.1vw,12px);
+--fs-sm:clamp(13px,1.3vw,14px);
+--fs-md:clamp(14px,1.5vw,16px);
+--fs-lg:clamp(18px,2.2vw,22px);
+--fs-xl:clamp(24px,3.2vw,36px);
+--fs-2xl:clamp(30px,4.5vw,52px);
+--fs-3xl:clamp(36px,5.5vw,64px);
+--font-sans:'Pretendard Variable',Pretendard,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;
+--font-mono:'JetBrains Mono',monospace;
+--pad:clamp(24px,5vw,64px);
+--pad-inner:clamp(20px,4vw,48px);
+}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text-primary);font-family:var(--font-sans);-webkit-font-smoothing:antialiased}
+#three-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+.top-bar{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:16px var(--pad);background:rgba(26,25,22,0.7);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border)}
+.progress-track{position:absolute;top:0;left:0;right:0;height:2px;background:rgba(245,244,237,0.06)}
+.progress-fill{height:100%;background:var(--terracotta);transition:width .5s cubic-bezier(.4,0,.2,1);width:0}
+.top-chapter{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;transition:opacity .3s,transform .3s;max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.top-counter{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.08em}
+.swiper{width:100%;height:100vh;position:relative;z-index:1}
+.swiper-slide{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;overflow-y:auto;padding:80px var(--pad) 60px;word-break:keep-all;overflow-wrap:break-word}
+.swiper-slide::-webkit-scrollbar{width:3px}
+.swiper-slide::-webkit-scrollbar-thumb{background:var(--text-muted);border-radius:3px}
+.slide-inner{max-width:960px;width:100%;min-width:0;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
+.swiper-slide-active .slide-inner{opacity:1;transform:translateY(0)}
+.cover-inner{display:flex;flex-direction:column;align-items:center;text-align:center;gap:32px}
+.cover-headline{font-family:var(--font-sans);font-size:var(--fs-3xl);font-weight:800;line-height:1.2;letter-spacing:-.02em;color:var(--text-primary);max-width:800px}
+.cover-headline em{font-style:normal;color:var(--terracotta)}
+.cover-subtitle{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.06em;line-height:1.7;max-width:600px}
+.cover-topics{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;margin-top:8px}
+.cover-topics span{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--terracotta);border:1px solid rgba(201,100,66,0.3);padding:6px 14px;border-radius:2px;letter-spacing:.04em;transition:background .3s,color .3s}
+.cover-topics span:hover{background:rgba(201,100,66,0.15)}
+.chapter-inner{display:flex;align-items:flex-end;gap:clamp(24px,4vw,60px);width:100%}
+.chapter-num{font-family:var(--font-mono);font-size:clamp(72px,10vw,140px);font-weight:700;line-height:.85;color:var(--terracotta);opacity:.3;flex-shrink:0}
+.chapter-text{display:flex;flex-direction:column;gap:10px;padding-bottom:8px}
+.chapter-title{font-size:var(--fs-xl);font-weight:700;line-height:1.25;color:var(--text-primary)}
+.chapter-sub{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5}
+.body-inner{display:flex;flex-direction:column;gap:28px;width:100%}
+.body-headline{font-size:var(--fs-xl);font-weight:700;line-height:1.35;color:var(--text-primary)}
+.body-headline em{font-style:normal;color:var(--terracotta)}
+.body-text{font-size:var(--fs-md);line-height:1.8;color:var(--text-secondary);max-width:720px}
+.implication-block{position:relative;margin-top:12px;padding:20px 24px;border-left:3px solid var(--terracotta);background:rgba(201,100,66,0.05);border-radius:0 4px 4px 0;opacity:0;transform:translateY(20px);transition:opacity .4s .3s ease,transform .4s .3s ease}
+.swiper-slide-active .implication-block{opacity:1;transform:translateY(0)}
+.implication-label{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--terracotta);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px}
+.implication-text{font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.7;color:var(--text-secondary)}
+.data-inner{display:flex;flex-direction:column;gap:28px;width:100%}
+.data-headline{font-size:var(--fs-xl);font-weight:700;line-height:1.35;color:var(--text-primary)}
+.data-headline em{font-style:normal;color:var(--terracotta)}
+.data-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:680px){.data-cards{grid-template-columns:1fr}}
+.data-card{background:var(--glass-bg);border:1px solid var(--glass-border);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:8px;padding:var(--pad-inner);display:flex;flex-direction:column;gap:10px;transition:transform .3s,border-color .3s,box-shadow .3s;min-width:0}
+.data-card:hover{transform:translateY(-4px);border-color:rgba(201,100,66,0.3);box-shadow:0 8px 32px rgba(201,100,66,0.1)}
+.data-card-label{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase}
+.data-card-value{font-family:var(--font-mono);font-size:clamp(32px,5vw,48px);font-weight:700;color:var(--terracotta);line-height:1}
+.data-card-desc{font-size:var(--fs-sm);color:var(--text-secondary);line-height:1.6}
+.cta-inner{display:flex;flex-direction:column;align-items:center;text-align:center;gap:24px}
+.cta-headline{font-size:var(--fs-xl);font-weight:700;line-height:1.35;color:var(--text-primary);max-width:700px}
+.cta-closing{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-muted);letter-spacing:.06em}
+.cta-btn{display:inline-block;margin-top:12px;padding:14px 36px;font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-primary);background:transparent;border:1px solid var(--terracotta);border-radius:4px;text-decoration:none;letter-spacing:.06em;transition:background .3s,box-shadow .3s,transform .3s;cursor:pointer}
+.cta-btn:hover{background:rgba(201,100,66,0.15);box-shadow:0 0 24px rgba(201,100,66,0.25);transform:translateY(-2px)}
+.swiper-button-next,.swiper-button-prev{color:var(--text-muted)!important;opacity:.4;transition:opacity .3s}
+.swiper-button-next:hover,.swiper-button-prev:hover{opacity:.8}
+.swiper-pagination-bullet{background:var(--text-muted)!important;opacity:.3!important}
+.swiper-pagination-bullet-active{background:var(--terracotta)!important;opacity:1!important}
+.hanwha-watermark{position:fixed;bottom:20px;right:24px;font-family:var(--font-sans);font-size:13px;font-weight:700;letter-spacing:.12em;color:#888;mix-blend-mode:difference;opacity:.6;pointer-events:none;z-index:9999}
+@media(max-width:680px){
+.cover-headline{font-size:clamp(26px,7vw,40px)}
+.chapter-inner{flex-direction:column;align-items:flex-start;gap:12px}
+.chapter-num{font-size:clamp(48px,12vw,72px)}
+.swiper-button-next,.swiper-button-prev{display:none!important}
+.top-bar{padding:12px 16px}
+}
+</style>
+
+<style id="__mobile_safety__">
+/* bot-runtime 자동 주입 — LLM HTML의 모바일 오버플로우·문장 잘림 방지 */
+html, body { -webkit-text-size-adjust: 100%; }
+
+/* 1) Swiper 슬라이드: 세로 중앙 정렬 + 내용 길면 스크롤 */
+.swiper, .swiper-container { width:100%; height:100%; }
+.swiper-slide {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  -webkit-overflow-scrolling: touch;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  padding: clamp(24px,5vw,64px) !important;
+  box-sizing: border-box !important;
+}
+.swiper-slide::-webkit-scrollbar { width: 3px; }
+.swiper-slide::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.4); border-radius: 3px; }
+
+/* 2) 슬라이드 직계 자식: 한국어 단어 중간 끊김 방지 + 너비 제한 */
+.swiper-slide > * {
+  max-width: 100% !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+/* 3) 긴 텍스트 요소: break-word 안전망 */
+.swiper-slide p,
+.swiper-slide li,
+.swiper-slide h1,
+.swiper-slide h2,
+.swiper-slide h3 {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+/* 4) 모바일 (≤768px): 패딩 축소 + 터치 스크롤 최적화 */
+@media (max-width: 768px) {
+  .swiper-slide {
+    padding: 56px 16px 36px !important;
+  }
+  .swiper-slide p,
+  .swiper-slide li {
+    line-height: 1.6;
+  }
+}
+
+/* 5) 아주 좁은 뷰포트 (≤375px) — 최소 가독성 */
+@media (max-width: 375px) {
+  .swiper-slide {
+    padding: 48px 12px 28px !important;
+  }
+}
+</style>
+
+</head>
+<body>
+
+<canvas id="three-canvas"></canvas>
+
+<div class="top-bar">
+<div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+<div class="top-chapter" id="topChapter">중국 AI, 토큰 전쟁의 새 승자</div>
+<div class="top-counter" id="topCounter">01 / 11</div>
+</div>
+
+<div class="swiper" id="mainSwiper">
+<div class="swiper-wrapper">
+
+<!-- SLIDE 1: COVER -->
+<div class="swiper-slide" data-chapter="중국 AI, 토큰 전쟁의 새 승자" data-scene="cover">
+<div class="slide-inner cover-inner">
+<div class="cover-subtitle">Bloomberg 2026.04.20 — 중국 스타트업 MiniMax, 글로벌 토큰 소비량 4위 등극</div>
+<h1 class="cover-headline">AI 경쟁의 판이 바뀌었다.<br>이제 모델이 아니라 <em>토큰 가격</em>이 승부를 가른다.</h1>
+<div class="cover-topics">
+<span>토큰 단가 전쟁</span>
+<span>중국 AI 급부상</span>
+<span>비용 구조 재편</span>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 2: CHAPTER 01 -->
+<div class="swiper-slide" data-chapter="01 — 토큰 경제의 부상" data-scene="chapter">
+<div class="slide-inner chapter-inner">
+<div class="chapter-num">01</div>
+<div class="chapter-text">
+<h2 class="chapter-title">토큰 경제의 부상</h2>
+<p class="chapter-sub">AI 비용의 기본 단위가 된 토큰, 왜 지금 주목해야 하나</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 3: BODY -->
+<div class="swiper-slide" data-chapter="01 — 토큰 경제의 부상" data-scene="body">
+<div class="slide-inner body-inner">
+<h2 class="body-headline">AI 에이전트를 쓸수록 토큰이 쌓인다.<br><em>토큰이 쌓이면 그게 곧 비용이다.</em></h2>
+<p class="body-text">토큰은 약 4글자 분량의 데이터 단위다. AI 경제의 기본 통화가 됐다. 무료·정액 플랜에도 한도가 있고, 초과하면 쓴 만큼 과금된다. AI 에이전트 활용이 늘수록 대화량이 폭증하고, 토큰 소비는 기하급수로 올라간다. 모델 성능이 평준화되는 시점에서, 진짜 경쟁력은 '같은 품질을 얼마에 제공하느냐'로 이동 중이다.</p>
+<div class="implication-block">
+<div class="implication-label">→ Implication</div>
+<p class="implication-text">지금 할 일: 우리 조직의 AI 도구별 월간 토큰 소비량과 단가를 산출하라. 비용 구조를 모르면 협상도, 전환도 못 한다.</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 4: CHAPTER 02 -->
+<div class="swiper-slide" data-chapter="02 — 중국의 비용 우위" data-scene="chapter">
+<div class="slide-inner chapter-inner">
+<div class="chapter-num">02</div>
+<div class="chapter-text">
+<h2 class="chapter-title">중국의 비용 우위</h2>
+<p class="chapter-sub">전기료·인건비 구조가 만든 토큰 가격 격차</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 5: DATA -->
+<div class="swiper-slide" data-chapter="02 — 중국의 비용 우위" data-scene="data-cost">
+<div class="slide-inner data-inner">
+<h2 class="data-headline">같은 백만 토큰에 MiniMax는 <em>$1</em>,<br>Claude는 <em>$15</em> 이상이다.</h2>
+<div class="data-cards">
+<div class="data-card" data-density="sparse">
+<div class="data-card-label">MiniMax</div>
+<div class="data-card-value" data-count="1" data-prefix="$">$0</div>
+<div class="data-card-desc">백만 토큰 기준. 중국 데이터센터 비용 구조의 힘</div>
+</div>
+<div class="data-card">
+<div class="data-card-label">Google Gemini</div>
+<div class="data-card-value" data-count="3" data-prefix="$">$0</div>
+<div class="data-card-desc">MiniMax 대비 3배</div>
+</div>
+<div class="data-card" data-density="dense">
+<div class="data-card-label">Anthropic Claude</div>
+<div class="data-card-value" data-count="15" data-prefix="$" data-suffix="+">$0</div>
+<div class="data-card-desc">MiniMax 대비 15배 이상</div>
+</div>
+</div>
+<div class="implication-block">
+<div class="implication-label">→ Implication</div>
+<p class="implication-text">60일 내 중국 모델(MiniMax·DeepSeek·Qwen)로 비핵심 업무 파일럿을 돌려라. 보안 이슈가 없는 요약·번역·초안 작업부터 비용 차이를 체감하라.</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 6: BODY -->
+<div class="swiper-slide" data-chapter="02 — 중국의 비용 우위" data-scene="body">
+<div class="slide-inner body-inner">
+<h2 class="body-headline">OpenRouter 글로벌 토큰 소비량 1~3위,<br><em>전부 중국 모델</em>이 가져갔다.</h2>
+<p class="body-text">4월 19일 OpenRouter 글로벌 집계 기준, 토큰 소비량 상위 3개 모델은 MiniMax·DeepSeek·Qwen이다. 4위에 오른 MiniMax는 Alphabet·Anthropic·OpenAI 바로 다음이다. 중국이 유리한 이유는 단순하다. 전기료와 인건비가 싸서 데이터센터 운영 비용이 미국보다 구조적으로 낮다. AI 에이전트 플랫폼의 폭발적 인기가 저비용 중국 모델 수요를 더 끌어올리고 있다.</p>
+<div class="implication-block">
+<div class="implication-label">→ Implication</div>
+<p class="implication-text">CTO·CDO에게 묻는다. 현재 사용 중인 AI 모델의 비용 대안을 검토한 적 있는가? 토큰 소비가 10배 늘어날 때 지금 단가 구조로 버틸 수 있는가?</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 7: CHAPTER 03 -->
+<div class="swiper-slide" data-chapter="03 — 시장의 반응" data-scene="chapter">
+<div class="slide-inner chapter-inner">
+<div class="chapter-num">03</div>
+<div class="chapter-text">
+<h2 class="chapter-title">시장의 반응</h2>
+<p class="chapter-sub">주식 시장은 이미 중국 AI 신흥 세력에 베팅하고 있다</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 8: DATA -->
+<div class="swiper-slide" data-chapter="03 — 시장의 반응" data-scene="data-stock">
+<div class="slide-inner data-inner">
+<h2 class="data-headline">MiniMax <em>+440%</em>, Zhipu <em>+750%</em>.<br>시장은 빅테크가 아니라 신흥 플레이어에 베팅했다.</h2>
+<div class="data-cards">
+<div class="data-card">
+<div class="data-card-label">MiniMax 홍콩 상장 후</div>
+<div class="data-card-value" data-count="440" data-prefix="+" data-suffix="%">0</div>
+<div class="data-card-desc">골드만삭스 평가: 중국 AI 중 성장 가능성 최상위</div>
+</div>
+<div class="data-card">
+<div class="data-card-label">Zhipu 홍콩 상장 후</div>
+<div class="data-card-value" data-count="750" data-prefix="+" data-suffix="%">0</div>
+<div class="data-card-desc">토큰 경제 수혜주로 급부상</div>
+</div>
+<div class="data-card">
+<div class="data-card-label">알리바바·텐센트</div>
+<div class="data-card-value" style="color:var(--text-muted);font-size:clamp(24px,3.5vw,36px)">하락</div>
+<div class="data-card-desc">기존 빅테크는 오히려 역풍</div>
+</div>
+</div>
+<div class="implication-block">
+<div class="implication-label">→ Implication</div>
+<p class="implication-text">투자·파트너십 관점에서 중국 AI 생태계 지도를 다시 그려라. 알리바바·텐센트가 아니라 MiniMax·DeepSeek·Zhipu가 새 축이다.</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 9: CHAPTER 04 -->
+<div class="swiper-slide" data-chapter="04 — C레벨이 지금 해야 할 것" data-scene="chapter">
+<div class="slide-inner chapter-inner">
+<div class="chapter-num">04</div>
+<div class="chapter-text">
+<h2 class="chapter-title">C레벨이 지금 해야 할 것</h2>
+<p class="chapter-sub">모델 성능 경쟁은 끝나간다. 토큰 비용 전략이 다음 승부처다</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 10: BODY -->
+<div class="swiper-slide" data-chapter="04 — C레벨이 지금 해야 할 것" data-scene="body">
+<div class="slide-inner body-inner">
+<h2 class="body-headline">AI 경쟁 구도가 바뀌었다.<br><em>'누가 더 싼 토큰을 대량 공급하냐'</em>로.</h2>
+<p class="body-text">모델 품질은 빠르게 평준화되고 있다. 다음 경쟁은 비용이다. 중국은 구조적 비용 우위로 이 싸움에서 앞서 있다. 보안·컴플라이언스 이슈는 분명 존재하지만, '중국 모델은 안 쓴다'는 전략은 비용 격차가 15배일 때 지속 가능하지 않다. 용도별로 모델을 분리하고, 비핵심 영역부터 저비용 모델을 실전 투입하는 것이 현실적 전략이다.</p>
+<div class="implication-block">
+<div class="implication-label">→ Implication</div>
+<p class="implication-text">이번 분기 내 실행: 1) AI 비용 대시보드 구축 — 모델별·용도별 토큰 단가 비교. 2) 보안 등급별 모델 분류 기준 수립. 3) 비핵심 업무 3개에 중국 모델 PoC 착수.</p>
+</div>
+</div>
+</div>
+
+<!-- SLIDE 11: CTA -->
+<div class="swiper-slide" data-chapter="마무리" data-scene="cta">
+<div class="slide-inner cta-inner">
+<h2 class="cta-headline">모델 성능은 평준화된다.<br>비용 구조를 장악한 쪽이<br>AI 시대의 인프라를 쥔다.</h2>
+<a class="cta-btn" href="https://www.bloomberg.com/news/articles/2025-04-20/china-s-minimax-breaks-into-top-tier-of-global-ai-token-usage" target="_blank">원문 보기 →</a>
+<div class="cta-closing">— Hanwha Insight</div>
+</div>
+</div>
+
+</div>
+<div class="swiper-pagination"></div>
+<div class="swiper-button-next"></div>
+<div class="swiper-button-prev"></div>
+</div>
+
+<div class="hanwha-watermark">Hanwha</div>
+
+<script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  /* ── Total slides ── */
+  var totalSlides = document.querySelectorAll('.swiper-slide').length;
+
+  /* ── Swiper ── */
+  var swiper = new Swiper('#mainSwiper', {
+    direction: 'horizontal',
+    effect: 'fade',
+    fadeEffect: { crossFade: true },
+    speed: 500,
+    keyboard: { enabled: true },
+    mousewheel: { forceToAxis: true, sensitivity: 1 },
+    pagination: { el: '.swiper-pagination', clickable: true },
+    navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+    on: {
+      init: function(){ updateUI(this); },
+      slideChange: function(){ updateUI(this); }
+    }
+  });
+
+  /* ── Top bar update ── */
+  function updateUI(sw){
+    var idx = sw.activeIndex;
+    var slide = sw.slides[idx];
+    var chapter = slide.getAttribute('data-chapter') || '';
+    var num = String(idx + 1).padStart(2,'0');
+    var tot = String(totalSlides).padStart(2,'0');
+    document.getElementById('topChapter').textContent = chapter;
+    document.getElementById('topCounter').textContent = num + ' / ' + tot;
+    var pct = ((idx + 1) / totalSlides) * 100;
+    document.getElementById('progressFill').style.width = pct + '%';
+    runCounters(slide);
+  }
+
+  /* ── Counter-up animation ── */
+  var counted = new WeakSet();
+  function runCounters(slide){
+    var cards = slide.querySelectorAll('.data-card-value[data-count]');
+    cards.forEach(function(el){
+      if(counted.has(el)) return;
+      counted.add(el);
+      var target = parseFloat(el.getAttribute('data-count'));
+      var prefix = el.getAttribute('data-prefix') || '';
+      var suffix = el.getAttribute('data-suffix') || '';
+      var duration = 1200;
+      var start = performance.now();
+      function tick(now){
+        var elapsed = now - start;
+        var progress = Math.min(elapsed / duration, 1);
+        var ease = 1 - Math.pow(1 - progress, 3);
+        var current = Math.round(target * ease);
+        el.textContent = prefix + current.toLocaleString() + suffix;
+        if(progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    });
+  }
+
+  /* ── Three.js subtle particle background ── */
+  (function initThree(){
+    var canvas = document.getElementById('three-canvas');
+    if(!canvas || typeof THREE === 'undefined') return;
+    var renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: false });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 600);
+    camera.position.z = 200;
+    var count = 600;
+    var positions = new Float32Array(count * 3);
+    var velocities = [];
+    for(var i = 0; i < count; i++){
+      positions[i*3]   = (Math.random() - 0.5) * 500;
+      positions[i*3+1] = (Math.random() - 0.5) * 500;
+      positions[i*3+2] = (Math.random() - 0.5) * 300;
+      velocities.push({ x: (Math.random()-0.5)*0.15, y: (Math.random()-0.5)*0.15, z: (Math.random()-0.5)*0.05 });
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.PointsMaterial({ color: 0xc96442, size: 1.6, transparent: true, opacity: 0.25, sizeAttenuation: true });
+    var points = new THREE.Points(geo, mat);
+    scene.add(points);
+
+    function animate(){
+      requestAnimationFrame(animate);
+      var pos = geo.attributes.position.array;
+      for(var i = 0; i < count; i++){
+        pos[i*3]   += velocities[i].x;
+        pos[i*3+1] += velocities[i].y;
+        pos[i*3+2] += velocities[i].z;
+        if(Math.abs(pos[i*3]) > 250) velocities[i].x *= -1;
+        if(Math.abs(pos[i*3+1]) > 250) velocities[i].y *= -1;
+        if(Math.abs(pos[i*3+2]) > 150) velocities[i].z *= -1;
+      }
+      geo.attributes.position.needsUpdate = true;
+      points.rotation.y += 0.0003;
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener('resize', function(){
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  })();
+
+})();
+</script>
+</body>
+</html>
