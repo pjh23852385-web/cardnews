@@ -1028,23 +1028,40 @@ export async function proposeArtOptions() {
     designPrefText = `사용자 지정: ${designPref.requestedBrands.join(' + ')}${designPref.mixMode ? ' (믹스)' : ''}`;
   }
 
-  // 카탈로그에서 6개 브랜드 랜덤 샘플링 → 각 옵션에 강제 배정 (중복 방지)
-  const circledNums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
-  const shuffled = [...catalog.cards].sort(() => Math.random() - 0.5);
-  let assigned10 = shuffled.slice(0, 6);
+  // 카테고리별 분산 샘플링 — 6개 카테고리에서 1개씩 뽑아서 다양성 보장
+  const circledNums = ['①','②','③','④','⑤','⑥'];
+  const categories = ['ai', 'brand', 'design-productivity', 'dev-tools', 'finance', 'infra'];
+  const picked = [];
+  for (const cat of categories) {
+    const pool = catalog.cards.filter(c => c.category === cat && !picked.some(p => p.name === c.name));
+    if (pool.length > 0) {
+      picked.push(pool[Math.floor(Math.random() * pool.length)]);
+    }
+  }
+  // 6개 못 채우면 나머지에서 랜덤 보충
+  const remaining = catalog.cards.filter(c => !picked.some(p => p.name === c.name));
+  while (picked.length < 6 && remaining.length > 0) {
+    const idx = Math.floor(Math.random() * remaining.length);
+    picked.push(remaining.splice(idx, 1)[0]);
+  }
   // 사용자 지정 브랜드가 있으면 ① 슬롯에 강제 배정
   if (designPref?.requestedBrands?.length > 0) {
     const userBrand = catalog.cards.find(c => designPref.requestedBrands.includes(c.name));
     if (userBrand) {
-      assigned10 = [userBrand, ...assigned10.filter(b => b.name !== userBrand.name)].slice(0, 6);
+      const filtered = picked.filter(b => b.name !== userBrand.name);
+      picked.length = 0;
+      picked.push(userBrand, ...filtered.slice(0, 5));
     }
   }
-  const brandAssignment = assigned10.map((b, i) =>
-    `${circledNums[i]} = **${b.name}** (${b.category} | ${b.colors}) → 이 브랜드의 색상·톤을 기반으로 디자인`
+  // 색상 톤 + Three.js 강제 태그
+  const toneTag = ['다크톤', '다크톤', '라이트톤', '라이트톤', '컬러/그라디언트', '컬러/그라디언트'];
+  const threejsTag = ['Three.js 필수', '', '', 'Three.js 필수', '', ''];
+  const brandAssignment = picked.map((b, i) =>
+    `${circledNums[i]} = **${b.name}** (${b.category} | ${b.colors}) → 톤: ${toneTag[i]}${threejsTag[i] ? ' | ' + threejsTag[i] : ''}`
   ).join('\n');
 
   const copySummary = JSON.stringify(s.copyDraft, null, 2).slice(0, 6000);
-  const artPrompt = `카드뉴스 카피가 이미 확정됐어. 이 카피의 **톤·구조·강조 포인트**에 최적화된 디자인×인터랙션 3옵션을 JSON으로만. 자연어 설명 일체 금지.
+  const artPrompt = `카드뉴스 카피가 이미 확정됐어. 이 카피의 **톤·구조·강조 포인트**에 최적화된 디자인×인터랙션 6옵션을 JSON으로만. 자연어 설명 일체 금지.
 
 오디언스: ${audience}
 ${userNotesText}
@@ -1093,15 +1110,24 @@ ${copySummary}
 - **fits 필드에 폰트 선택 근거를 톤·감성 관점으로 설명**. "가독성이 좋아서" 같은 형식적 이유 X → "경영진에게 터미널 신뢰감을 주려면 모노스페이스가 숫자 펀치를 살린다" 같은 톤 기반 O.
 - **interaction 필드에 Three.js를 넣을 경우, 표지뿐 아니라 챕터/데이터/CTA 슬라이드별로 어떻게 변화하는지도 명시**. "표지만 파티클" X → "표지 파티클 + 챕터 전환 시 카메라 이동 + 데이터 슬라이드 파티클 밀도 변화 + CTA 블룸 강화" O.
 
-## ⚠️ 6개 옵션 중복 절대 금지
+## ⚠️ 6개 옵션 — 강제 다양성 규칙
 
-**6개 옵션은 각각 완전히 다른 디자인이어야 한다.**
-비슷한 옵션이 2개 이상 있으면 실패 → 재작업.
+**위 배정표의 톤(다크/라이트/컬러)과 Three.js 필수 태그를 반드시 지켜라.**
 
-자체 검증: 6개 옵션의 색감을 나란히 읽었을 때 "이거랑 저거 비슷한데?" 느낌이면 하나를 완전히 다른 방향으로 교체.
+색상 톤 분배 (이미 지정됨):
+- ①② = 다크톤 (검정/네이비/딥퍼플 계열)
+- ③④ = 라이트톤 (화이트/크림/베이지 계열)
+- ⑤⑥ = 컬러/그라디언트 (레드/에메랄드/핑크/골드 등 강한 색)
 
-10개 옵션은 다음 4가지 축이 **모두 서로 달라야** 함:
-1. **색감 톤**: 6개가 전부 다른 톤. 다크 3개 이상 금지, 라이트 3개 이상 금지. 그라디언트, 파스텔, 네온, 레트로, 모노크롬, 웜톤, 쿨톤 다양하게. **카탈로그의 실제 hex 코드를 참고**하되, 영감으로 활용.
+Three.js 강제:
+- ① ④ = Three.js 배경 필수 (파티클/쉐이더/네트워크/기하 중 택1)
+- 나머지는 CSS/GSAP/SVG 등 자유
+
+인터랙션 중복 금지:
+- 6개 옵션이 **각각 다른 메인 인터랙션**을 써야 함. 같은 인터랙션 2번 금지.
+- 예: ①파티클 ②카드틸트 ③타이핑 ④네트워크 ⑤카드플립 ⑥라인드로
+
+1. **색감**: 배정된 브랜드의 실제 hex 코드를 참고하되, 톤 태그(다크/라이트/컬러) 반드시 준수.
 2. **레이아웃**: 카드 그리드 / 전면 타이포 / 매거진 컬럼 / 대시보드 / 신문형 / 카드 스택 / 세로 스크롤 등 **다양한 구조 풀**에서 골라.
 3. **인터랙션**: CSS 애니메이션·JS 효과를 **서로 다르게**. 아래 풀에서 골라:
    - 기본: 카운터업 / fade-in 순차 / hover glow / 슬라이드 전환
