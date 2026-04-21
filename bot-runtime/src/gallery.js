@@ -97,14 +97,17 @@ async function _findLatestPreviews() {
         const mPath = path.join(gPath, m);
         const slugs = await fs.readdir(mPath).catch(() => []);
         for (const s of slugs) {
-          const previewsPath = path.join(mPath, s, 'previews');
-          try {
-            const stat = await fs.stat(previewsPath);
-            if (stat.isDirectory() && stat.mtimeMs > latestTime) {
-              latestTime = stat.mtimeMs;
-              latestDir = previewsPath;
-            }
-          } catch { /* no previews */ }
+          // previews/ 와 fulls/ 둘 다 탐색 — 가장 최근 폴더 사용
+          for (const sub of ['fulls', 'previews']) {
+            const subPath = path.join(mPath, s, sub);
+            try {
+              const stat = await fs.stat(subPath);
+              if (stat.isDirectory() && stat.mtimeMs > latestTime) {
+                latestTime = stat.mtimeMs;
+                latestDir = subPath;
+              }
+            } catch { /* 없으면 다음 */ }
+          }
         }
       }
     }
