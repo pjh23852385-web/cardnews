@@ -845,7 +845,7 @@ export async function handleAudienceAnswer(rawAnswer) {
   // 편집장 즉답 (사람처럼) — 부가 요구 ack 포함
   let ack = `알겠어요 @주현대리. **${parsed.audience || rawAnswer}** 로 확정할게요.`;
   if (parsed.notes.length > 0) {
-    ack += `\n\n📝 추가 메모로 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n작업에 반영할게요.`;
+    ack += `\n\n📝 추가 메모:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n작업에 반영할게요.`;
   }
   if (parsed.questions.length > 0) {
     ack += `\n\n질문 주신 건 작업하면서 답변 드릴게요: ${parsed.questions.join(' / ')}`;
@@ -873,7 +873,7 @@ export async function handleAudienceAnswer(rawAnswer) {
   await sendMessage(bots.editor, `톤 브리핑\n${briefing}\n\n카피 두 버전 병렬로 뽑고(A/B 비교) 내용 합의한 뒤에 아트 옵션 간다.`);
 
   // 카피라이터 착수 리액션
-  await sendMessage(bots.copywriter, `받았어요. **Claude Opus**와 **GPT-5** 두 버전 동시에 뽑습니다 (약 60초).\n\n`);
+  await sendMessage(bots.copywriter, `Opus와 **GPT-5** 두 버전 동시에 뽑습니다 (약 60초).\n\n`);
 
   // 병렬 호출 (Opus + GPT) — 한쪽 실패해도 다른 쪽으로 진행
   await typing(bots.copywriter);
@@ -980,7 +980,7 @@ export async function proposeArtOptions() {
   const audience = s.audience;
   const editorSystem = await loadAgentSystem('editor');
 
-  await sendMessage(bots.artDirector, `받았어요, 편집장. 카피 보고 3가지 가져옵니다. 잠깐만요.\n\n`);
+  await sendMessage(bots.artDirector, `카피 봤어. 10가지 방향 잡는다.\n\n`);
 
   // 아트디렉터 3옵션 생성 (카피 기반 + 브랜드 카탈로그 + Three.js 레퍼런스)
   await typing(bots.artDirector);
@@ -1994,7 +1994,7 @@ export async function handleUserText(text) {
 
             await sendMessage(
               bots.editor,
-              `✅ **${label}** 베이스로 받았어요 @주현대리. 합본 지시도 함께 오셨네요:
+              `✅ **${label}** 베이스로 메모했어. 합본 지시도 함께 오셨네요:
 > ${joined.slice(0, 200)}${joined.length > 200 ? ' …' : ''}
 
 A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRevCount || 1) + 1}** 뽑을게요. 30~60초 걸려요.
@@ -2042,7 +2042,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
           // 합본 지시 없이 단순 선택
           await sendMessage(
             bots.editor,
-            `✅ **${label}** 버전 선택 받았어요 @주현대리.
+            `✅ **${label}** 버전 선택 메모했어.
 
 이제 다음 중 자유롭게:
 
@@ -2071,7 +2071,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
 
           await sendMessage(
             bots.editor,
-            `📝 @주현대리 피드백 받았어요. A·B 둘 다 참고해서 **Opus 카피 v${(s.copyRevCount || 1) + 1}**로 다시 뽑을게요. 30~60초 걸립니다.
+            `📝 @주현대리 피드백 받았어. A·B 둘 다 참고해서 **Opus 카피 v${(s.copyRevCount || 1) + 1}**로 다시 뽑을게요. 30~60초 걸립니다.
 
 > ${f.notes.join(' / ').slice(0, 200)}
 
@@ -2131,7 +2131,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
         updateSession({ copyApproved: true });
         await sendMessage(
           bots.editor,
-          `✅ 카피 승인 받았어요 @주현대리 (${s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5'} 기준). 아트 옵션 단계로 넘어갑니다.\n\n`,
+          `✅ 카피 승인 메모했어 (${s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5'} 기준). 아트 옵션 단계로 넘어갑니다.\n\n`,
         );
         await proposeArtOptions();
         break;
@@ -2289,7 +2289,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         // 옵션은 안 정했지만 추가 요구는 있음 → ack + 옵션 재요청
         await sendMessage(
           bots.editor,
-          `📝 받았어요 @주현대리:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n메모해뒀다가 작업에 반영할게요.\n\n그래서 ①/②/③ 중 어느 옵션으로 가실까요?\n\n`,
+          `📝 메모했어:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n메모해뒀다가 작업에 반영할게요.\n\n그래서 ①/②/③ 중 어느 옵션으로 가실까요?\n\n`,
         );
         if (parsed.questions.length > 0) {
           await answerQuestionsAndReprompt(parsed.questions, s, 'option');
