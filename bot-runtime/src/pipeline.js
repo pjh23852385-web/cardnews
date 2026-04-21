@@ -114,7 +114,7 @@ function injectMobileSafetyCSS(html) {
 /* bot-runtime 자동 주입 — LLM HTML의 모바일 오버플로우·문장 잘림 방지 */
 html, body { -webkit-text-size-adjust: 100%; }
 
-/* 1) Swiper 슬라이드: 모든 뷰포트에서 내부 스크롤 허용. flex-center 가 아니라 flex-start 로 시작 → 위부터 보임 */
+/* 1) Swiper 슬라이드: 세로 중앙 정렬 + 내용 길면 스크롤 */
 .swiper, .swiper-container { width:100%; height:100%; }
 .swiper-slide {
   overflow-y: auto !important;
@@ -123,8 +123,9 @@ html, body { -webkit-text-size-adjust: 100%; }
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: flex-start !important;
-  padding: 72px 24px 48px !important;
+  justify-content: center !important;
+  min-height: 100vh !important;
+  padding: clamp(24px,5vw,64px) !important;
   box-sizing: border-box !important;
 }
 .swiper-slide::-webkit-scrollbar { width: 3px; }
