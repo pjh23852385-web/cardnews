@@ -54,6 +54,61 @@
     font-family: 'JetBrains Mono', monospace;
   }
 
+  /* -- Progress Bar -- */
+  .progress-section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .progress-bar-wrap {
+    width: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--green));
+    border-radius: 3px;
+    transition: width 0.5s ease;
+    width: 0%;
+  }
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .progress-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    background: transparent;
+    transition: all 0.3s;
+  }
+  .progress-dot.done {
+    background: var(--green);
+    border-color: var(--green);
+    color: #000;
+  }
+  .progress-dot.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    animation: dotPulse 1.2s infinite;
+  }
+  @keyframes dotPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
   /* Controls */
   .controls {
     padding: 12px 20px;
@@ -274,6 +329,12 @@
     <h1>Design Gallery</h1>
     <p id="previewCount">loading...</p>
   </div>
+  <div class="progress-section" id="progressSection">
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" id="progressFill"></div>
+    </div>
+    <div class="progress-dots" id="progressDots"></div>
+  </div>
   <div class="controls">
     <button class="view-btn active" data-view="desktop" onclick="setView('desktop')">Desktop</button>
     <button class="view-btn" data-view="mobile" onclick="setView('mobile')">Mobile</button>
@@ -323,12 +384,29 @@
   function renderList() {
     const list = document.getElementById('optionList');
     const count = document.getElementById('previewCount');
-    count.textContent = `${previews.length} previews`;
+    const total = 6; // 총 옵션 수
+    const done = previews.length;
+    count.textContent = `${done}/${total} completed`;
+
+    // 프로그레스 바
+    const fill = document.getElementById('progressFill');
+    fill.style.width = `${(done / total) * 100}%`;
+
+    // 프로그레스 도트
+    const dots = document.getElementById('progressDots');
+    let dotsHtml = '';
+    for (let i = 1; i <= total; i++) {
+      const isDone = i <= done;
+      const isActive = i === done + 1;
+      const cls = isDone ? 'done' : isActive ? 'active' : '';
+      dotsHtml += `<div class="progress-dot ${cls}">${isDone ? '✓' : i}</div>`;
+    }
+    dots.innerHTML = dotsHtml;
 
     if (previews.length === 0) {
       list.innerHTML = `<div class="loading">
         <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        waiting for previews...
+        generating previews...
       </div>`;
       return;
     }
