@@ -1136,7 +1136,7 @@ ${copySummary}
   try {
     previews = await generateOptionPreviews(s, artJson.options, audience);
     if (previews.length > 0) {
-      await sendMessage(bots.artDirector, `🎨 미리보기 ${previews.length}개 첨부 — 클릭해서 열어보세요.\n\n— 아트`);
+      await sendMessage(bots.artDirector, `🎨 미리보기 ${previews.length}개 첨부 + 갤러리에서 비교:\n👉 http://localhost:4000\n\n— 아트`);
       for (const p of previews) {
         try { await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`); }
         catch (e) { log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e); }
