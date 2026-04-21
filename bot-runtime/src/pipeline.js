@@ -888,7 +888,7 @@ export async function handleAudienceAnswer(rawAnswer) {
   const volumePrompt = `소스 본문을 읽고 데이터 포인트(수치, 팩트, 시사점)를 전부 세.
 JSON으로만 답해:
 \`\`\`json
-{"count": 숫자, "estimated_slides": 숫자, "summary": "주요 항목 나열 (3줄 이내)"}
+{"count": 숫자, "estimated_slides": 숫자, "summary": "대주제별 슬래시(/) 구분. 예: 기술 성능(3건) / 생산성(4건) / 고용(3건)"}
 \`\`\`
 
 소스:
@@ -910,7 +910,7 @@ ${s.sourceText.slice(0, 8000)}`;
 
   if (volumeCount > 0) {
     await sendMessage(bots.copywriter,
-      `소스 확인. 데이터 포인트 ${volumeCount}개 발견.\n예상 슬라이드 ${estimatedSlides}장.\n${volumeSummary}\n\n이 정도면 괜찮아? 조정하려면 숫자 말해. 확정되면 "OK" 해.`
+      `소스 확인 — 데이터 포인트 ${volumeCount}개, 예상 ${estimatedSlides}장\n\n${volumeSummary.split('/').map(s => '  - ' + s.trim()).join('\n')}\n\nOK 또는 숫자 조정.`
     );
     updateSession({ state: STATES.AWAITING_VOLUME_CONFIRM, volumeCount, estimatedSlides });
     return;
