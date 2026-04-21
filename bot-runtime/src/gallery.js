@@ -120,7 +120,7 @@ async function _findLatestPreviews() {
     const previews = [];
     for (const f of htmlFiles) {
       const filePath = path.join(latestDir, f);
-      const relativePath = '/output/' + path.relative(paths.root, filePath).replace(/\\/g, '/');
+      const relativePath = '/' + path.relative(paths.root, filePath).replace(/\\/g, '/');
 
       // HTML에서 <title>과 색상 추출
       const content = await fs.readFile(filePath, 'utf-8');
