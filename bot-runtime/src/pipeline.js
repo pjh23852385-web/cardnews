@@ -1292,7 +1292,7 @@ async function _runStyleBuild(choices, typingInterval) {
   const editorSystemForQA = await loadAgentSystem('editor');
 
   const buildTasks = selectedOptions.map(async (opt) => {
-    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : opt.id === '④' ? '4' : opt.id === '⑤' ? '5' : opt.id === '⑥' ? '6' : opt.id === '⑦' ? '7' : opt.id === '⑧' ? '8' : opt.id === '⑨' ? '9' : opt.id === '⑩' ? '10' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
 
     // ── A) HTML v0 생성 ───────────────────────────────
     // reference_brands 에서 실제 DESIGN.md 로드
@@ -2655,7 +2655,7 @@ ${HANWHA_LOGO_RULE}`;
       if (idx > 0) html = html.slice(idx);
     }
 
-    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
+    const safeId = opt.id === '①' ? '1' : opt.id === '②' ? '2' : opt.id === '③' ? '3' : opt.id === '④' ? '4' : opt.id === '⑤' ? '5' : opt.id === '⑥' ? '6' : opt.id === '⑦' ? '7' : opt.id === '⑧' ? '8' : opt.id === '⑨' ? '9' : opt.id === '⑩' ? '10' : String(opt.id).replace(/[^0-9]/g, '') || 'x';
     // 모바일 safety CSS 주입
     html = injectMobileSafetyCSS(html);
 
