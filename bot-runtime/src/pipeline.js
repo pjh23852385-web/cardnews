@@ -2591,7 +2591,9 @@ async function generateOptionPreviews(s, options, audience) {
   await fs.mkdir(previewsDir, { recursive: true });
   if (!s.slug) updateSession({ slug: baseSlug });
 
-  const tasks = options.map(async (opt) => {
+  // 순차 호출 — 병렬(Promise.all)은 API 레이트 리밋에 걸려서 빈 HTML 발생
+  const results = [];
+  for (const opt of options) {
     const copyBlock = copyForPreview
       ? `## 승인된 카피 (앞 3슬라이드 — **반드시 이 텍스트 그대로** 렌더링, 추가 창작·각색 금지)
 ${JSON.stringify(copyForPreview, null, 2)}
@@ -2661,10 +2663,11 @@ ${HANWHA_LOGO_RULE}`;
     const filePath = path.join(previewsDir, fileName);
     await fs.writeFile(filePath, html, 'utf-8');
 
-    return { id: opt.id, name: opt.name, path: filePath };
-  });
+    results.push({ id: opt.id, name: opt.name, path: filePath });
+    log.info('PREVIEW', `순차 완료 ${opt.id} ${opt.name}`);
+  }
 
-  return Promise.all(tasks);
+  return results;
 }
 
 /**
