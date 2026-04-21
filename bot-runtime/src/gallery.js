@@ -2,10 +2,13 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { paths } from './config.js';
 
 const PORT = 4000;
-const GALLERY_HTML = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1')), '..', 'gallery-index.html');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const GALLERY_HTML = path.resolve(__dirname, '..', 'gallery-index.html');
 
 /**
  * 갤러리 서버 시작.
