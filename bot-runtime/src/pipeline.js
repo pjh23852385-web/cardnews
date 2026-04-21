@@ -139,31 +139,53 @@ html, body { -webkit-text-size-adjust: 100%; }
   min-width: 0;
 }
 
-/* 3) 긴 텍스트 요소: break-word 안전망 */
+/* 3) 본문 최소 글자 크기 강제 — LLM이 너무 작게 잡는 문제 방지 */
 .swiper-slide p,
-.swiper-slide li,
-.swiper-slide h1,
-.swiper-slide h2,
+.swiper-slide li {
+  font-size: clamp(16px, 2.2vw, 20px) !important;
+  line-height: 1.75 !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.swiper-slide h1 {
+  font-size: clamp(28px, 5vw, 48px) !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.swiper-slide h2 {
+  font-size: clamp(22px, 3.5vw, 36px) !important;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
 .swiper-slide h3 {
+  font-size: clamp(18px, 2.8vw, 28px) !important;
   word-break: keep-all;
   overflow-wrap: break-word;
 }
 
-/* 4) 모바일 (≤768px): 패딩 축소 + 터치 스크롤 최적화 */
+/* 4) 모바일 (≤768px): 패딩 축소 + 본문 크기 보정 */
 @media (max-width: 768px) {
   .swiper-slide {
     padding: 56px 16px 36px !important;
   }
   .swiper-slide p,
   .swiper-slide li {
-    line-height: 1.6;
+    font-size: clamp(15px, 4vw, 18px) !important;
+    line-height: 1.7 !important;
   }
+  .swiper-slide h1 { font-size: clamp(24px, 7vw, 32px) !important; }
+  .swiper-slide h2 { font-size: clamp(20px, 5.5vw, 28px) !important; }
+  .swiper-slide h3 { font-size: clamp(17px, 4.5vw, 22px) !important; }
 }
 
 /* 5) 아주 좁은 뷰포트 (≤375px) — 최소 가독성 */
 @media (max-width: 375px) {
   .swiper-slide {
     padding: 48px 12px 28px !important;
+  }
+  .swiper-slide p,
+  .swiper-slide li {
+    font-size: 15px !important;
   }
 }
 </style>
