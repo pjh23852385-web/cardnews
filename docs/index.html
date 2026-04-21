@@ -59,6 +59,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text-prim
 .chapter-title{font-size:var(--fs-xl);font-weight:700;line-height:1.25;color:var(--text-primary)}
 .chapter-sub{font-family:var(--font-mono);font-size:var(--fs-sm);color:var(--text-muted);line-height:1.5}
 .body-inner{display:flex;flex-direction:column;gap:14px;width:100%}
+.body-inner.with-image{flex-direction:row;gap:32px;align-items:center}
+.body-inner.with-image .slide-image{flex:0 0 38%;max-width:38%;border-radius:10px;overflow:hidden}
+.body-inner.with-image .slide-image img{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;max-height:60vh}
+.body-inner.with-image .slide-content{flex:1;display:flex;flex-direction:column;gap:14px}
+.data-inner.with-image{flex-direction:row;gap:32px;align-items:center}
+.data-inner.with-image .slide-image{flex:0 0 35%;max-width:35%;border-radius:10px;overflow:hidden}
+.data-inner.with-image .slide-image img{width:100%;height:100%;object-fit:cover;display:block;border-radius:10px;max-height:60vh}
+.data-inner.with-image .slide-content{flex:1;display:flex;flex-direction:column;gap:12px}
+@media(max-width:680px){.body-inner.with-image,.data-inner.with-image{flex-direction:column}.body-inner.with-image .slide-image,.data-inner.with-image .slide-image{flex:none;max-width:100%;max-height:30vh}}
 .body-headline{font-size:var(--fs-xl);font-weight:700;line-height:1.35;color:var(--text-primary)}
 .body-headline em{font-style:normal;color:var(--terracotta)}
 .body-text{font-size:var(--fs-md);line-height:1.8;color:var(--text-secondary);max-width:720px}
@@ -169,7 +178,6 @@ html, body { -webkit-text-size-adjust: 100%; }
 <div class="swiper-slide" data-chapter="중국 AI, 토큰 전쟁의 새 승자" data-scene="cover">
 <div class="slide-inner cover-inner">
 <div class="cover-subtitle">Bloomberg 2026.04.20 — 중국 스타트업 MiniMax, 글로벌 토큰 소비량 4위 등극</div>
-<img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?w=800&h=400&fit=crop" alt="AI abstract" style="width:100%;max-width:600px;max-height:30vh;object-fit:cover;border-radius:12px;margin-bottom:24px;opacity:0.85;">
 <h1 class="cover-headline">AI 경쟁의 판이 바뀌었다.<br>이제 모델이 아니라 <em>토큰 가격</em>이 승부를 가른다.</h1>
 <div class="cover-topics">
 <span>토큰 단가 전쟁</span>
@@ -215,8 +223,9 @@ html, body { -webkit-text-size-adjust: 100%; }
 
 <!-- SLIDE 5: DATA -->
 <div class="swiper-slide" data-chapter="02 — 중국의 비용 우위" data-scene="data-cost">
-<div class="slide-inner data-inner">
-<img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&h=300&fit=crop" alt="AI chips" style="width:100%;max-width:500px;max-height:25vh;object-fit:cover;border-radius:10px;margin-bottom:20px;opacity:0.8;">
+<div class="slide-inner data-inner with-image">
+<div class="slide-image"><img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=600&h=800&fit=crop" alt="AI chips"></div>
+<div class="slide-content">
 <h2 class="data-headline">같은 백만 토큰에 MiniMax는 <em>$1</em>,<br>Claude는 <em>$15</em> 이상이다.</h2>
 <div class="data-cards">
 <div class="data-card" data-density="sparse">
@@ -239,6 +248,7 @@ html, body { -webkit-text-size-adjust: 100%; }
 <div class="implication-label">→ Implication</div>
 <p class="implication-text">60일 내 중국 모델(MiniMax·DeepSeek·Qwen)로 비핵심 업무 파일럿을 돌려라. 보안 이슈가 없는 요약·번역·초안 작업부터 비용 차이를 체감하라.</p>
 </div>
+</div><!-- /slide-content -->
 </div>
 </div>
 
@@ -267,8 +277,9 @@ html, body { -webkit-text-size-adjust: 100%; }
 
 <!-- SLIDE 8: DATA -->
 <div class="swiper-slide" data-chapter="03 — 시장의 반응" data-scene="data-stock">
-<div class="slide-inner data-inner">
-<img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=300&fit=crop" alt="stock market" style="width:100%;max-width:500px;max-height:25vh;object-fit:cover;border-radius:10px;margin-bottom:20px;opacity:0.8;">
+<div class="slide-inner data-inner with-image">
+<div class="slide-image"><img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&h=800&fit=crop" alt="stock market"></div>
+<div class="slide-content">
 <h2 class="data-headline">MiniMax <em>+440%</em>, Zhipu <em>+750%</em>.<br>시장은 빅테크가 아니라 신흥 플레이어에 베팅했다.</h2>
 <div class="data-cards">
 <div class="data-card">
@@ -291,6 +302,7 @@ html, body { -webkit-text-size-adjust: 100%; }
 <div class="implication-label">→ Implication</div>
 <p class="implication-text">투자·파트너십 관점에서 중국 AI 생태계 지도를 다시 그려라. 알리바바·텐센트가 아니라 MiniMax·DeepSeek·Zhipu가 새 축이다.</p>
 </div>
+</div><!-- /slide-content -->
 </div>
 </div>
 
