@@ -1309,13 +1309,26 @@ async function _runStyleBuild(choices, typingInterval) {
 
     const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 — 카피는 고정). 한 파일 완성본.
 
-## 이 옵션의 스타일 정체성
-- 이름: ${opt.name}
-- 색감: ${opt.colors}
-- 레이아웃: ${opt.layout}
-- 인터랙션: ${opt.interaction}
-- 어울림: ${opt.fits}
-- 참조 브랜드: ${refBrands.join(', ') || design.name}
+## ⚠️ 이 옵션의 스타일 정체성 — 아래 내용을 100% 정확히 구현해야 함
+아트디렉터가 제안한 디자인을 **글자 그대로** 구현하라. 요약하거나 간소화하지 말 것.
+
+### 이름
+${opt.name}
+
+### 🎨 색감 (이 hex 코드를 CSS 변수로 정의하고 정확히 사용)
+${opt.colors}
+
+### 📐 레이아웃 (이 구조를 그대로 구현)
+${opt.layout}
+
+### ✨ 인터랙션 (모든 효과를 빠짐없이 구현 — Three.js/GSAP/CSS 3D 등)
+${opt.interaction}
+
+### 🎯 이 스타일을 선택한 이유
+${opt.fits}
+
+### 참조 브랜드
+${refBrands.join(', ') || design.name}
 
 ${brandRefBlock}
 
@@ -1373,6 +1386,13 @@ ${HANWHA_LOGO_RULE}
 - \`Swiper.on('slideChangeTransitionEnd')\` 에서 활성 슬라이드 애니메이션 트리거
 - data-count 속성 있으면 IntersectionObserver 또는 slideChange 로 반드시 카운트업
 
+### E. 스타일 옵션 충실도 (가장 중요)
+- 위 "스타일 정체성" 섹션에 명시된 **모든 요소가 실제로 구현**됐는지 자체 점검
+- 색감: 명시된 hex 코드가 CSS에 정확히 반영됐는가
+- 레이아웃: 명시된 그리드/배치 구조가 그대로 적용됐는가
+- 인터랙션: Three.js 배경, 카드 flip, glow pulse 등 **명시된 모든 효과**가 JS+CSS 모두 구현됐는가
+- 빠진 효과가 하나라도 있으면 **실패** — 추가해서 다시 출력하라
+
 12. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
 
     log.info('BUILDING_FULLS', `html.start id=${opt.id} name="${opt.name}"`);
@@ -1386,11 +1406,18 @@ ${HANWHA_LOGO_RULE}
     log.info('BUILDING_FULLS', `qa.art.start id=${opt.id}`);
     const artQAPrompt = `방금 네가 만든 HTML이야. 아트 관점에서 체크해서 **수정된 HTML 한 파일** 반환해.
 
+## 원래 스타일 옵션 (이게 100% 반영돼야 함)
+- 이름: ${opt.name}
+- 색감: ${opt.colors}
+- 레이아웃: ${opt.layout}
+- 인터랙션: ${opt.interaction}
+
 ## 체크리스트 (하나씩 검사 — 발견되면 HTML 직접 고쳐)
-1. **문장 잘림**: \`.swiper-slide\` 에 overflow:hidden 있으면 overflow-y:auto 로. word-break:keep-all 누락 슬라이드 있는지. 긴 텍스트가 뷰포트 아래로 짤리면 max-height + 내부 스크롤로 해결.
-2. **챕터 인디케이터**: 상단 바에 현재 챕터명 계속 보이는지. 슬라이드 전환 시 챕터명 업데이트 JS 있는지. 없으면 추가.
-3. **타이포 스케일**: 전체 글자 크기 용도별(h1/h2/h3/p/small)로 통일돼 있나. 슬라이드마다 제각각이면 CSS 변수로 정리.
-4. **인터랙션 작동**: 카운터업 IntersectionObserver / slideChange 이벤트 구현됐나. hover CSS 없으면 추가. fade-in keyframe 정의됐나.
+1. **스타일 충실도 (최우선)**: 위 옵션에 명시된 색감·레이아웃·인터랙션이 **전부** 구현됐나. 빠진 효과 있으면 추가. Three.js 배경, 카드 flip, glow pulse, Glassmorphism, GSAP 등 명시된 건 반드시 있어야 함.
+2. **문장 잘림**: \`.swiper-slide\` 에 overflow:hidden 있으면 overflow-y:auto 로. word-break:keep-all 누락 슬라이드 있는지. 긴 텍스트가 뷰포트 아래로 짤리면 max-height + 내부 스크롤로 해결.
+3. **챕터 인디케이터**: 상단 바에 현재 챕터명 계속 보이는지. 슬라이드 전환 시 챕터명 업데이트 JS 있는지. 없으면 추가.
+4. **타이포 스케일**: 전체 글자 크기 용도별(h1/h2/h3/p/small)로 통일돼 있나. 슬라이드마다 제각각이면 CSS 변수로 정리.
+5. **인터랙션 작동**: 카운터업 IntersectionObserver / slideChange 이벤트 구현됐나. hover CSS 없으면 추가. fade-in keyframe 정의됐나.
 
 ## 기존 HTML
 ${html.slice(0, 15000)}
