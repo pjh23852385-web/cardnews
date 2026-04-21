@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "start": "node src/index.js",
+    "start": "taskkill /F /IM node.exe 2>nul & node src/index.js",
     "dev": "node --watch src/index.js",
     "test-connect": "node src/smoke.js"
   },
