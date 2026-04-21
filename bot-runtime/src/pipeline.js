@@ -1586,14 +1586,19 @@ ${html.slice(0, 15000)}
     }
   }
 
+  // ── 4.5) 갤러리 index.html 자동 생성 ───────────────
+  await _generateGalleryIndex(fullsDir, builtList);
+
   // ── 5) 편집장 체크포인트 ③ — 검수 유도 ───────────────
   const listLine = builtList.map((b) => `${b.id} ${b.name} — v${b.version}`).join('\n  ');
   await sendMessage(
     bots.editor,
-    `@주현대리 완성본 ${builtList.length}개 첨부 드렸어요:
+    `@주현대리 완성본 ${builtList.length}개:
   ${listLine}
 
-배포 전 꼭 체크** — 하나씩 열어서:
+갤러리에서 비교: http://localhost:4000
+
+배포 전 체크:
   ✓ 텍스트 (문장 잘림 / 오타 / 어색한 표현)
   ✓ 레이아웃 (여백 / 카드 배치 / 슬라이드 순서)
   ✓ 인터랙션 (hover / 카운터업 / 슬라이드 전환)
@@ -2454,6 +2459,67 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
       }
       break;
     }
+  }
+}
+
+// ──────────────────────────────────────────────
+// 갤러리 index.html 자동 생성 — fulls/ 폴더에 3열 그리드 비교 페이지
+// ──────────────────────────────────────────────
+async function _generateGalleryIndex(fullsDir, builtList) {
+  try {
+    // fulls/ 폴더의 HTML 파일 목록 (동적으로 읽기)
+    const files = await fs.readdir(fullsDir);
+    const htmlFiles = files.filter(f => f.endsWith('.html') && f !== 'index.html').sort();
+
+    if (htmlFiles.length === 0) return;
+
+    // builtList에서 이름 매핑
+    const nameMap = {};
+    for (const b of (builtList || [])) {
+      const safeId = b.id === '①' ? '1' : b.id === '②' ? '2' : b.id === '③' ? '3' : b.id === '④' ? '4' : b.id === '⑤' ? '5' : b.id === '⑥' ? '6' : b.id === '⑦' ? '7' : b.id === '⑧' ? '8' : b.id === '⑨' ? '9' : b.id === '⑩' ? '10' : 'x';
+      const pattern = `full-${safeId.padStart(2, '0')}`;
+      nameMap[pattern] = `${b.id} ${b.name}`;
+    }
+
+    const cards = htmlFiles.map((f, i) => {
+      const base = f.replace('.html', '');
+      const label = nameMap[base.replace(/-v\d+$/, '')] || f;
+      return `
+      <div class="card" onclick="window.open('${f}','_blank')">
+        <div class="card-header">${label}</div>
+        <iframe src="${f}" loading="lazy"></iframe>
+      </div>`;
+    }).join('');
+
+    const indexHtml = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design Gallery</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0a0f;color:#e4e4e7;font-family:system-ui,-apple-system,sans-serif;padding:24px}
+h1{font-size:18px;font-weight:600;margin-bottom:20px;color:#a78bfa}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:1024px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.grid{grid-template-columns:1fr}}
+.card{border:1px solid #1e1e2a;border-radius:12px;overflow:hidden;cursor:pointer;transition:border-color .2s,transform .2s;background:#14141b}
+.card:hover{border-color:#a78bfa;transform:translateY(-4px)}
+.card-header{padding:12px 16px;font-size:13px;font-weight:600;border-bottom:1px solid #1e1e2a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+iframe{width:100%;height:400px;border:none;pointer-events:none;background:#000}
+</style>
+</head>
+<body>
+<h1>Design Gallery — ${htmlFiles.length} options</h1>
+<div class="grid">${cards}</div>
+</body>
+</html>`;
+
+    await fs.writeFile(path.join(fullsDir, 'index.html'), indexHtml, 'utf-8');
+    log.info('GALLERY_INDEX', `generated index.html with ${htmlFiles.length} cards in ${fullsDir}`);
+  } catch (e) {
+    log.warn('GALLERY_INDEX', `생성 실패: ${e.message}`);
   }
 }
 
