@@ -1174,7 +1174,7 @@ ${copySummary}
   });
   log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${artJson.options.length} (plan only, no previews yet)`);
 
-  await sendMessage(bots.editor, `@주현대리 옵션 계획 봐. 피드백 있으면 줘. 없으면 번호 골라 ("①" / "①③") — 그러면 미리보기 만들고 풀 제작 간다.`);
+  await sendMessage(bots.editor, `@주현대리 옵션 계획 봐.\n\n"미리보기 만들어" → 6개 전부 미리보기\n번호 골라 ("①" / "①③") → 선택한 것만 미리보기\n\n갤러리: http://localhost:4000`);
 }
 
 // ──────────────────────────────────────────────
@@ -2295,6 +2295,14 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
     }
 
     case STATES.AWAITING_OPTION: {
+      // "미리보기 만들어" / "전부" / "6개" / "다 만들어" → 전체 미리보기
+      const previewKeywords = /미리보기|전부|전체|다\s*(만들|줘|보여)|6개|여섯/i;
+      if (previewKeywords.test(text)) {
+        const allIds = (s.options || []).map(o => o.id);
+        await handleStyleChoices(allIds);
+        break;
+      }
+
       const parsed = await parseOptionChoice(text, s);
 
       // 부가 요구는 session.userNotes 에 저장
@@ -2309,12 +2317,12 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         break;
       }
 
-      // 스타일 선택 있으면 풀 HTML 제작 단계로 (복수 허용)
+      // 스타일 선택 있으면 미리보기 제작 (복수 허용)
       if (parsed.choices.length > 0) {
         if (parsed.notes.length > 0) {
           await sendMessage(
             bots.editor,
-            `📝 추가 요구 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n카피·아트 제작 시 반영합니다.\n\n`,
+            `메모:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n반영한다.\n\n`,
           );
         }
         if (parsed.questions.length > 0) {
@@ -2328,7 +2336,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         // 옵션은 안 정했지만 추가 요구는 있음 → ack + 옵션 재요청
         await sendMessage(
           bots.editor,
-          `📝 메모했어:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n메모해뒀다가 작업에 반영할게요.\n\n그래서 ①/②/③ 중 어느 옵션으로 가실까요?\n\n`,
+          `📝 메모했어:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n반영한다.\n\n"미리보기 만들어" 또는 번호 골라.\n\n`,
         );
         if (parsed.questions.length > 0) {
           await answerQuestionsAndReprompt(parsed.questions, s, 'option');
@@ -2339,7 +2347,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
       } else {
         await sendMessage(
           bots.editor,
-          `@주현대리 ①/②/③ 중에서 선택해 주시거나 "편집장 추천대로" 같이 답해줘. 추가 요구사항이 있으시면 같이 적어주셔도 돼요 (예: "①로 가되 색을 더 밝게").\n\n`,
+          `@주현대리 번호 골라. "미리보기 만들어"로 6개 전부 미리보기도 가능..\n\n`,
         );
       }
       break;
