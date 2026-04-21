@@ -1010,7 +1010,7 @@ export async function proposeArtOptions() {
   const audience = s.audience;
   const editorSystem = await loadAgentSystem('editor');
 
-  await sendMessage(bots.artDirector, `카피 봤어. 10가지 방향 잡는다.\n\n`);
+  await sendMessage(bots.artDirector, `카피 봤어. 6가지 방향 잡는다.\n\n`);
 
   // 아트디렉터 3옵션 생성 (카피 기반 + 브랜드 카탈로그 + Three.js 레퍼런스)
   await typing(bots.artDirector);
@@ -1028,15 +1028,15 @@ export async function proposeArtOptions() {
     designPrefText = `사용자 지정: ${designPref.requestedBrands.join(' + ')}${designPref.mixMode ? ' (믹스)' : ''}`;
   }
 
-  // 카탈로그에서 10개 브랜드 랜덤 샘플링 → 각 옵션에 강제 배정 (중복 방지)
+  // 카탈로그에서 6개 브랜드 랜덤 샘플링 → 각 옵션에 강제 배정 (중복 방지)
   const circledNums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
   const shuffled = [...catalog.cards].sort(() => Math.random() - 0.5);
-  let assigned10 = shuffled.slice(0, 10);
+  let assigned10 = shuffled.slice(0, 6);
   // 사용자 지정 브랜드가 있으면 ① 슬롯에 강제 배정
   if (designPref?.requestedBrands?.length > 0) {
     const userBrand = catalog.cards.find(c => designPref.requestedBrands.includes(c.name));
     if (userBrand) {
-      assigned10 = [userBrand, ...assigned10.filter(b => b.name !== userBrand.name)].slice(0, 10);
+      assigned10 = [userBrand, ...assigned10.filter(b => b.name !== userBrand.name)].slice(0, 6);
     }
   }
   const brandAssignment = assigned10.map((b, i) =>
@@ -1068,7 +1068,7 @@ ${copySummary}
 \`\`\`json
 {
   "analysis": "카피 분석 2~3줄 (150자 내외). 카피 톤, 슬라이드 개수, 숫자 강조 여부, 시사점 위치 등.",
-  "intro_line": "발화 시작 문구 (예: '카피 보니까 이런 특성이 있어서 10가지 방향 가져왔어.')",
+  "intro_line": "발화 시작 문구 (예: '카피 보니까 이런 특성이 있어서 6가지 방향 가져왔어.')",
   "options": [
     {
       "id": "①",
@@ -1079,8 +1079,7 @@ ${copySummary}
       "interaction": "인터랙션 (Three.js/GSAP/CSS 3D 등 구체적 기법)",
       "fits": "카피 특성과 매칭 이유"
     },
-    {"id": "②", ...}, {"id": "③", ...}, {"id": "④", ...}, {"id": "⑤", ...},
-    {"id": "⑥", ...}, {"id": "⑦", ...}, {"id": "⑧", ...}, {"id": "⑨", ...}, {"id": "⑩", ...}
+    {"id": "②", ...}, {"id": "③", ...}, {"id": "④", ...}, {"id": "⑤", ...}, {"id": "⑥", ...}
   ],
   "outro_line": "마무리 한 줄"
 }
@@ -1088,21 +1087,21 @@ ${copySummary}
 
 규칙:
 - JSON 블록 하나만. 앞뒤 아무 설명 없이.
-- options 정확히 **10개**. id는 ①~⑩ 유니코드.
+- options 정확히 **6개**. id는 ①~⑩ 유니코드.
 - **reference_brands**: 위 카탈로그에서 영감 받은 브랜드 1~2개 (영문 소문자, 카탈로그 name 그대로). 3개 옵션이 **서로 다른** 브랜드를 참조해야 함.
 - 아트 톤(ENTP, 조수용+배민 디자인팀)으로 자연스럽게 (JSON 필드 텍스트 안에서).
 - **fits 필드에 폰트 선택 근거를 톤·감성 관점으로 설명**. "가독성이 좋아서" 같은 형식적 이유 X → "경영진에게 터미널 신뢰감을 주려면 모노스페이스가 숫자 펀치를 살린다" 같은 톤 기반 O.
 - **interaction 필드에 Three.js를 넣을 경우, 표지뿐 아니라 챕터/데이터/CTA 슬라이드별로 어떻게 변화하는지도 명시**. "표지만 파티클" X → "표지 파티클 + 챕터 전환 시 카메라 이동 + 데이터 슬라이드 파티클 밀도 변화 + CTA 블룸 강화" O.
 
-## ⚠️ 10개 옵션 중복 절대 금지
+## ⚠️ 6개 옵션 중복 절대 금지
 
-**10개 옵션은 각각 완전히 다른 디자인이어야 한다.**
+**6개 옵션은 각각 완전히 다른 디자인이어야 한다.**
 비슷한 옵션이 2개 이상 있으면 실패 → 재작업.
 
-자체 검증: 10개 옵션의 색감을 나란히 읽었을 때 "이거랑 저거 비슷한데?" 느낌이면 하나를 완전히 다른 방향으로 교체.
+자체 검증: 6개 옵션의 색감을 나란히 읽었을 때 "이거랑 저거 비슷한데?" 느낌이면 하나를 완전히 다른 방향으로 교체.
 
 10개 옵션은 다음 4가지 축이 **모두 서로 달라야** 함:
-1. **색감 톤**: 10개가 전부 다른 톤. 다크 3개 이상 금지, 라이트 3개 이상 금지. 그라디언트, 파스텔, 네온, 레트로, 모노크롬, 웜톤, 쿨톤 다양하게. **카탈로그의 실제 hex 코드를 참고**하되, 영감으로 활용.
+1. **색감 톤**: 6개가 전부 다른 톤. 다크 3개 이상 금지, 라이트 3개 이상 금지. 그라디언트, 파스텔, 네온, 레트로, 모노크롬, 웜톤, 쿨톤 다양하게. **카탈로그의 실제 hex 코드를 참고**하되, 영감으로 활용.
 2. **레이아웃**: 카드 그리드 / 전면 타이포 / 매거진 컬럼 / 대시보드 / 신문형 / 카드 스택 / 세로 스크롤 등 **다양한 구조 풀**에서 골라.
 3. **인터랙션**: CSS 애니메이션·JS 효과를 **서로 다르게**. 아래 풀에서 골라:
    - 기본: 카운터업 / fade-in 순차 / hover glow / 슬라이드 전환
