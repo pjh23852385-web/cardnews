@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hanwha Design System — Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ============================================================
+       HANWHA 전용 서체
+    ============================================================ */
+    @font-face {
+      font-family: 'Hanwha';
+      src: url('fonts/03HanwhaL.ttf') format('truetype');
+      font-weight: 300;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Hanwha';
+      src: url('fonts/02HanwhaR.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Hanwha';
+      src: url('fonts/01HanwhaB.ttf') format('truetype');
+      font-weight: 700;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'HanwhaGothic';
+      src: url('fonts/08HanwhaGothicT.ttf') format('truetype');
+      font-weight: 100;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'HanwhaGothic';
+      src: url('fonts/07HanwhaGothicEL.ttf') format('truetype');
+      font-weight: 200;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'HanwhaGothic';
+      src: url('fonts/06HanwhaGothicL.ttf') format('truetype');
+      font-weight: 300;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'HanwhaGothic';
+      src: url('fonts/05HanwhaGothicR.ttf') format('truetype');
+      font-weight: 400;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'HanwhaGothic';
+      src: url('fonts/04HanwhaGothicB.ttf') format('truetype');
+      font-weight: 700;
+      font-style: normal;
+    }
+
+    /* ============================================================
+       DESIGN TOKENS
+    ============================================================ */
+    :root {
+      /* Brand Colors */
+      --color-brand:        #ed7100;
+      --color-brand-light:  #f4a051;
+      --color-brand-cream:  #f7bb82;
+      --color-dark:         #231815;
+
+      /* Neutrals */
+      --color-white:        #FFFFFF;
+      --color-off-white:    #FFF8F3;
+      --color-gray:         #6B6B6B;
+      --color-gray-light:   #E8E0DA;
+
+      /* Semantic */
+      --bg-primary:         var(--color-white);
+      --bg-secondary:       var(--color-off-white);
+      --text-primary:       var(--color-dark);
+      --text-secondary:     var(--color-gray);
+      --border:             var(--color-gray-light);
+
+      /* Typography */
+      --font-base: 'HanwhaGothic', 'Noto Sans KR', sans-serif;
+      --font-display: 'Hanwha', 'HanwhaGothic', sans-serif;
+
+      /* Spacing */
+      --space-xs:  4px;
+      --space-sm:  8px;
+      --space-md:  16px;
+      --space-lg:  24px;
+      --space-xl:  32px;
+      --space-2xl: 48px;
+      --space-3xl: 64px;
+      --space-4xl: 96px;
+
+      /* Radius */
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 16px;
+
+      /* Shadows */
+      --shadow-card:       0 2px 12px rgba(35, 24, 21, 0.08);
+      --shadow-card-hover: 0 8px 32px rgba(237, 113, 0, 0.15);
+      --shadow-nav:        0 2px 16px rgba(35, 24, 21, 0.1);
+
+      /* Transitions */
+      --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+      --ease-spring:   cubic-bezier(0.34, 1.56, 0.64, 1);
+      --dur-fast:   150ms;
+      --dur-normal: 250ms;
+      --dur-slow:   500ms;
+    }
+
+    /* ============================================================
+       RESET & BASE
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-base);
+      font-size: 16px;
+      line-height: 1.65;
+      color: var(--text-primary);
+      background: var(--bg-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    img, svg { display: block; max-width: 100%; }
+
+    h1, h2, h3, h4, h5, h6 {
+      font-family: var(--font-display);
+    }
+    a { color: var(--color-brand); text-decoration: none; }
+    a:hover { color: var(--color-brand-light); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ============================================================
+       LAYOUT UTILITIES
+    ============================================================ */
+    .container {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 0 var(--space-xl);
+    }
+
+    @media (max-width: 768px) {
+      .container { padding: 0 var(--space-md); }
+    }
+
+    .section {
+      padding: var(--space-4xl) 0;
+    }
+
+    @media (max-width: 1024px) { .section { padding: var(--space-3xl) 0; } }
+    @media (max-width: 768px)  { .section { padding: var(--space-2xl) 0; } }
+
+    .section-title {
+      font-size: 2rem;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--space-sm);
+      letter-spacing: -0.02em;
+    }
+
+    .section-title-accent {
+      display: block;
+      width: 48px;
+      height: 3px;
+      background: var(--color-brand);
+      margin-top: var(--space-sm);
+      margin-bottom: var(--space-xl);
+      border-radius: 2px;
+    }
+
+    .section-subtitle {
+      font-size: 1.0625rem;
+      color: var(--text-secondary);
+      margin-bottom: var(--space-2xl);
+      max-width: 560px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-lg);
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space-lg);
+    }
+
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: var(--space-lg);
+    }
+
+    @media (max-width: 1024px) {
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 768px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+
+    /* ============================================================
+       NAVIGATION
+    ============================================================ */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 72px;
+      background: rgba(255, 255, 255, 0.97);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      box-shadow: var(--shadow-nav);
+      transition: height var(--dur-normal) var(--ease-standard);
+    }
+
+    .nav.scrolled { height: 64px; }
+
+    .nav-inner {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: var(--space-md);
+    }
+
+    .nav-logo svg {
+      width: 120px;
+      height: auto;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xl);
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--text-primary);
+      transition: color var(--dur-fast) var(--ease-standard);
+      position: relative;
+    }
+
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--color-brand);
+      transition: width var(--dur-normal) var(--ease-standard);
+    }
+
+    .nav-links a:hover { color: var(--color-brand); }
+    .nav-links a:hover::after { width: 100%; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+
+    /* ============================================================
+       HERO
+    ============================================================ */
+    .hero {
+      background: var(--bg-primary);
+      padding: var(--space-4xl) 0;
+      min-height: 560px;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -120px;
+      right: -80px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(247, 187, 130, 0.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -80px;
+      left: -60px;
+      width: 400px;
+      height: 400px;
+      background: radial-gradient(circle, rgba(237, 113, 0, 0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-brand);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: var(--space-md);
+    }
+
+    .hero-eyebrow span {
+      display: inline-block;
+      width: 24px;
+      height: 2px;
+      background: var(--color-brand);
+    }
+
+    .hero-title {
+      font-size: clamp(2.25rem, 5vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text-primary);
+      letter-spacing: -0.03em;
+      margin-bottom: var(--space-lg);
+    }
+
+    .hero-title em {
+      font-style: normal;
+      color: var(--color-brand);
+    }
+
+    .hero-desc {
+      font-size: 1.125rem;
+      color: var(--text-secondary);
+      max-width: 520px;
+      margin-bottom: var(--space-xl);
+      line-height: 1.7;
+    }
+
+    .hero-cta {
+      display: flex;
+      gap: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .hero-logo-area {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .hero-logo-wrap {
+      background: var(--color-off-white);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3xl);
+      border: 1px solid var(--border);
+    }
+
+    .hero-logo-wrap svg {
+      width: 280px;
+      height: auto;
+    }
+
+    @media (min-width: 1024px) {
+      .hero-inner {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-4xl);
+        align-items: center;
+      }
+    }
+
+    /* ============================================================
+       BUTTONS
+    ============================================================ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-sm);
+      font-family: var(--font-base);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      line-height: 1;
+      padding: 13px 28px;
+      border-radius: var(--radius-sm);
+      border: 2px solid transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all var(--dur-fast) var(--ease-spring);
+      white-space: nowrap;
+    }
+
+    .btn:focus-visible {
+      outline: 3px solid var(--color-brand);
+      outline-offset: 2px;
+    }
+
+    /* Primary */
+    .btn-primary {
+      background: var(--color-brand);
+      color: var(--color-white);
+      border-color: var(--color-brand);
+    }
+    .btn-primary:hover {
+      background: var(--color-brand-light);
+      border-color: var(--color-brand-light);
+      color: var(--color-white);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(237, 113, 0, 0.35);
+    }
+    .btn-primary:active {
+      background: #c95f00;
+      transform: translateY(0);
+    }
+
+    /* Secondary */
+    .btn-secondary {
+      background: transparent;
+      color: var(--color-brand);
+      border-color: var(--color-brand);
+    }
+    .btn-secondary:hover {
+      background: var(--color-brand);
+      color: var(--color-white);
+      transform: translateY(-1px);
+    }
+    .btn-secondary:active { transform: translateY(0); }
+
+    /* Ghost Dark */
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-primary);
+      border-color: var(--text-primary);
+    }
+    .btn-ghost:hover {
+      background: var(--text-primary);
+      color: var(--color-white);
+    }
+
+    /* Sizes */
+    .btn-sm { font-size: 0.8125rem; padding: 9px 20px; }
+    .btn-lg { font-size: 1rem; padding: 16px 36px; }
+
+    /* White variant (for dark backgrounds) */
+    .btn-white {
+      background: var(--color-white);
+      color: var(--color-brand);
+      border-color: var(--color-white);
+    }
+    .btn-white:hover {
+      background: var(--color-off-white);
+      color: var(--color-brand);
+    }
+
+    /* ============================================================
+       SECTION: COLOR PALETTE
+    ============================================================ */
+    .palette-section { background: var(--bg-secondary); }
+
+    .swatch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--space-md);
+    }
+
+    .swatch {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-card);
+    }
+
+    .swatch-color {
+      height: 100px;
+      width: 100%;
+    }
+
+    .swatch-info {
+      background: var(--color-white);
+      padding: var(--space-md);
+    }
+
+    .swatch-name {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+
+    .swatch-hex {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+      font-family: 'Courier New', monospace;
+    }
+
+    .swatch-role {
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    /* ============================================================
+       SECTION: TYPOGRAPHY
+    ============================================================ */
+    .type-sample {
+      margin-bottom: var(--space-xl);
+      padding-bottom: var(--space-xl);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .type-sample:last-child { border-bottom: none; margin-bottom: 0; }
+
+    .type-meta {
+      display: flex;
+      gap: var(--space-lg);
+      margin-bottom: var(--space-sm);
+    }
+
+    .type-tag {
+      display: inline-block;
+      background: var(--color-brand-cream);
+      color: var(--text-primary);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      padding: 3px 8px;
+      border-radius: 2px;
+    }
+
+    .type-spec {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .type-display {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.03em;
+    }
+
+    .type-h1 { font-size: 2.5rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
+    .type-h2 { font-size: 2rem; font-weight: 600; line-height: 1.25; letter-spacing: -0.02em; }
+    .type-h3 { font-size: 1.5rem; font-weight: 600; line-height: 1.35; }
+    .type-body-lg { font-size: 1.125rem; line-height: 1.7; }
+    .type-body { font-size: 1rem; line-height: 1.65; }
+    .type-body-sm { font-size: 0.875rem; line-height: 1.6; color: var(--text-secondary); }
+    .type-label { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* ============================================================
+       SECTION: CARDS
+    ============================================================ */
+    .card {
+      background: var(--color-white);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+      transition: transform var(--dur-normal) var(--ease-standard),
+                  box-shadow var(--dur-normal) var(--ease-standard);
+      position: relative;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: var(--color-brand);
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: var(--shadow-card-hover);
+    }
+
+    .card-img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      background: linear-gradient(135deg, var(--color-off-white) 0%, var(--color-brand-cream) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card-img-placeholder {
+      color: var(--color-brand);
+      font-size: 3rem;
+      opacity: 0.4;
+    }
+
+    .card-body {
+      padding: var(--space-lg);
+    }
+
+    .card-badge {
+      display: inline-block;
+      background: var(--color-brand-cream);
+      color: var(--text-primary);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 4px 10px;
+      border-radius: 2px;
+      margin-bottom: var(--space-sm);
+    }
+
+    .card-title {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-sm);
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+
+    .card-desc {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: var(--space-md);
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: var(--space-md);
+      border-top: 1px solid var(--border);
+    }
+
+    .card-meta {
+      font-size: 0.8125rem;
+      color: var(--text-secondary);
+    }
+
+    .card-link {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--color-brand);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: gap var(--dur-fast) var(--ease-standard);
+    }
+
+    .card-link:hover { gap: 8px; color: var(--color-brand-light); }
+
+    /* ============================================================
+       SECTION: ORANGE BAND (CTA)
+    ============================================================ */
+    .cta-band {
+      background: var(--color-brand);
+      padding: var(--space-4xl) 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-band::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -10%;
+      width: 500px;
+      height: 500px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .cta-band::after {
+      content: '';
+      position: absolute;
+      bottom: -40%;
+      right: -5%;
+      width: 400px;
+      height: 400px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+
+    .cta-band-inner {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+
+    .cta-band-eyebrow {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: rgba(255,255,255,0.75);
+      margin-bottom: var(--space-md);
+    }
+
+    .cta-band-title {
+      font-size: clamp(1.75rem, 4vw, 2.75rem);
+      font-weight: 700;
+      color: var(--color-white);
+      letter-spacing: -0.02em;
+      margin-bottom: var(--space-md);
+    }
+
+    .cta-band-desc {
+      font-size: 1.0625rem;
+      color: rgba(255,255,255,0.8);
+      max-width: 520px;
+      margin: 0 auto var(--space-xl);
+      line-height: 1.7;
+    }
+
+    .cta-band-buttons {
+      display: flex;
+      gap: var(--space-md);
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* ============================================================
+       SECTION: STATS
+    ============================================================ */
+    .stats-section { background: var(--bg-secondary); }
+
+    .stat-card {
+      text-align: center;
+      padding: var(--space-xl);
+      background: var(--color-white);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-card);
+    }
+
+    .stat-number {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--color-brand);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: var(--space-sm);
+    }
+
+    .stat-label {
+      font-size: 0.9375rem;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ============================================================
+       SECTION: BADGE & TAGS
+    ============================================================ */
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+      margin-bottom: var(--space-md);
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      padding: 5px 12px;
+      border-radius: 2px;
+    }
+
+    .badge-brand    { background: var(--color-brand); color: #fff; }
+    .badge-cream    { background: var(--color-brand-cream); color: var(--text-primary); }
+    .badge-light    { background: var(--color-brand-light); color: #fff; }
+    .badge-dark     { background: var(--text-primary); color: #fff; }
+    .badge-outline  { background: transparent; border: 1.5px solid var(--color-brand); color: var(--color-brand); }
+    .badge-gray     { background: var(--color-gray-light); color: var(--text-secondary); }
+
+    /* ============================================================
+       SECTION: FORM / INPUT
+    ============================================================ */
+    .form-group { margin-bottom: var(--space-md); }
+
+    label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--space-xs);
+    }
+
+    input[type="text"],
+    input[type="email"],
+    textarea,
+    select {
+      width: 100%;
+      font-family: var(--font-base);
+      font-size: 0.9375rem;
+      color: var(--text-primary);
+      background: var(--color-off-white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px var(--space-md);
+      transition: border-color var(--dur-fast) ease,
+                  box-shadow var(--dur-fast) ease;
+      outline: none;
+      appearance: none;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--color-brand);
+      box-shadow: 0 0 0 3px rgba(237, 113, 0, 0.15);
+      background: var(--color-white);
+    }
+
+    textarea { resize: vertical; min-height: 100px; }
+
+    /* ============================================================
+       FOOTER
+    ============================================================ */
+    .footer {
+      background: var(--color-dark);
+      color: rgba(255,255,255,0.6);
+      padding: var(--space-4xl) 0 var(--space-xl);
+    }
+
+    .footer-top {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: var(--space-2xl);
+      padding-bottom: var(--space-2xl);
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      margin-bottom: var(--space-xl);
+    }
+
+    @media (max-width: 1024px) {
+      .footer-top { grid-template-columns: 1fr 1fr; gap: var(--space-xl); }
+    }
+
+    @media (max-width: 768px) {
+      .footer-top { grid-template-columns: 1fr; }
+    }
+
+    .footer-logo-wrap { margin-bottom: var(--space-md); }
+    .footer-logo-wrap svg { opacity: 0.9; }
+
+    /* Convert dark logo fills to white in footer */
+    .footer-logo-wrap .cls-4 { fill: rgba(255,255,255,0.9); }
+
+    .footer-tagline {
+      font-size: 0.9375rem;
+      color: rgba(255,255,255,0.5);
+      line-height: 1.6;
+    }
+
+    .footer-col-title {
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.9);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: var(--space-md);
+    }
+
+    .footer-links {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .footer-links a {
+      font-size: 0.9375rem;
+      color: rgba(255,255,255,0.5);
+      transition: color var(--dur-fast) ease;
+    }
+
+    .footer-links a:hover { color: var(--color-brand-light); }
+
+    .footer-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+    }
+
+    .footer-copy {
+      font-size: 0.8125rem;
+      color: rgba(255,255,255,0.35);
+    }
+
+    .footer-brand-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      background: var(--color-brand);
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+
+    /* ============================================================
+       SCROLL ANIMATIONS
+    ============================================================ */
+    .fade-up {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity var(--dur-slow) var(--ease-standard),
+                  transform var(--dur-slow) var(--ease-standard);
+    }
+
+    .fade-up.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Stagger delay */
+    .fade-up:nth-child(1) { transition-delay: 0ms; }
+    .fade-up:nth-child(2) { transition-delay: 80ms; }
+    .fade-up:nth-child(3) { transition-delay: 160ms; }
+    .fade-up:nth-child(4) { transition-delay: 240ms; }
+
+    /* ============================================================
+       DIVIDER
+    ============================================================ */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0;
+    }
+
+    /* ============================================================
+       PREVIEW SECTION LABEL
+    ============================================================ */
+    .preview-label {
+      display: inline-block;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-brand);
+      background: rgba(237,113,0,0.08);
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      margin-bottom: var(--space-xl);
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- =============================================
+       NAVIGATION
+  ============================================= -->
+  <nav class="nav" id="mainNav" role="navigation" aria-label="메인 네비게이션">
+    <div class="container nav-inner">
+      <a href="#" class="nav-logo" aria-label="한화 홈">
+        <!-- Hanwha Logo SVG (inline) -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 134.47 87.83" role="img" aria-label="한화 로고">
+          <title>한화 로고</title>
+          <defs><style>.cls-1{fill:#f4a051}.cls-2{fill:#f7bb82}.cls-3{fill:#ed7100}.cls-4{fill:#231815}</style></defs>
+          <path class="cls-2" d="M59.07,29.06c-.81-7.37,6.92-13.28,17.26-13.2,10.34,.08,19.38,6.12,20.19,13.48,.82,7.37-6.9,13.28-17.25,13.2-10.34-.08-19.39-6.11-20.2-13.48m39.37,2.29c-.94-9.14-11.34-16.62-23.24-16.73-11.91-.1-20.79,7.23-19.86,16.37,.93,9.14,11.34,16.63,23.24,16.73,11.9,.1,20.8-7.23,19.86-16.37"/>
+          <path class="cls-1" d="M80.48,47.9c-5.86,6.13-15.27,6.63-21.01,1.14-5.75-5.5-5.65-14.92,.21-21.05,5.86-6.12,15.27-6.63,21.02-1.13,5.74,5.5,5.64,14.92-.22,21.04m-21.72-20.1c-6.81,7.12-6.92,18.07-.25,24.46,6.68,6.39,17.62,5.8,24.43-1.32,6.82-7.12,6.93-18.07,.25-24.46-6.67-6.39-17.61-5.8-24.43,1.32"/>
+          <path class="cls-3" d="M59.38,4.88c12.2-4.57,24.25,.05,26.93,10.33,2.69,10.27-5.03,22.3-17.22,26.87-12.2,4.57-24.25-.06-26.93-10.32-2.68-10.27,5.03-22.3,17.22-26.87m-11.32,3.93c-12.65,10.02-15.87,24.53-7.2,32.41,8.68,7.88,25.97,6.16,38.62-3.86,12.65-10.01,15.88-24.53,7.19-32.41-8.68-7.89-25.97-6.16-38.61,3.86"/>
+          <g>
+            <path class="cls-4" d="M20.54,65.15v22.67h-3.55v-11.96H3.55v11.96H0v-22.67H3.55v7.61h13.44v-7.61h3.55Z"/>
+            <path class="cls-4" d="M29.07,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+            <path class="cls-4" d="M52.27,70.78h3.49c2.21,0,3.95,.64,5.21,1.92,1.26,1.28,1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-9.77c0-2.29,.63-4.07,1.89-5.36,1.26-1.28,2.99-1.92,5.18-1.92Z"/>
+            <path class="cls-4" d="M79.24,85.55c-1.26,1.52-2.83,2.28-4.71,2.28h-2.19c-1.97,0-3.54-.62-4.71-1.86-1.11-1.16-1.66-2.81-1.66-4.94v-10.24h3.52v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.49v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.52v10.24c0,2.13-.57,3.78-1.72,4.94-1.17,1.24-2.74,1.86-4.74,1.86h-2.16c-1.84,0-3.38-.76-4.65-2.28Z"/>
+            <path class="cls-4" d="M102.92,73.86c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-22.73h3.55v6.72c1.03-.69,2.2-1.04,3.52-1.04h3.49c2.21,0,3.95,.64,5.21,1.92s1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02Z"/>
+            <path class="cls-4" d="M121.66,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+          </g>
+        </svg>
+      </a>
+
+      <ul class="nav-links">
+        <li><a href="#">사업 영역</a></li>
+        <li><a href="#">지속가능경영</a></li>
+        <li><a href="#">뉴스룸</a></li>
+        <li><a href="#">IR</a></li>
+        <li><a href="#" class="btn btn-primary btn-sm">채용 바로가기 →</a></li>
+      </ul>
+    </div>
+  </nav>
+
+
+  <!-- =============================================
+       HERO
+  ============================================= -->
+  <header class="hero" role="banner">
+    <div class="container">
+      <div class="hero-inner">
+
+        <div class="hero-content">
+          <p class="hero-eyebrow"><span></span> Brand Essence</p>
+          <h1 class="hero-title">
+            에너지가 삶을<br/>
+            <em>풍요롭게</em> 합니다
+          </h1>
+          <p class="hero-desc">
+            고객·사회·인류의 조화로운 발전을 위해,
+            한화는 오늘도 에너지와 혁신으로 세상을 연결합니다.
+            "Energy for Life"
+          </p>
+          <div class="hero-cta">
+            <a href="#" class="btn btn-primary btn-lg">사업 알아보기</a>
+            <a href="#" class="btn btn-secondary btn-lg">지속가능경영 →</a>
+          </div>
+        </div>
+
+        <div class="hero-logo-area">
+          <div class="hero-logo-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 134.47 87.83" role="img" aria-label="한화 트라이서클 로고">
+              <title>한화 로고</title>
+              <defs><style>.h-cls-1{fill:#f4a051}.h-cls-2{fill:#f7bb82}.h-cls-3{fill:#ed7100}.h-cls-4{fill:#231815}</style></defs>
+              <path class="h-cls-2" d="M59.07,29.06c-.81-7.37,6.92-13.28,17.26-13.2,10.34,.08,19.38,6.12,20.19,13.48,.82,7.37-6.9,13.28-17.25,13.2-10.34-.08-19.39-6.11-20.2-13.48m39.37,2.29c-.94-9.14-11.34-16.62-23.24-16.73-11.91-.1-20.79,7.23-19.86,16.37,.93,9.14,11.34,16.63,23.24,16.73,11.9,.1,20.8-7.23,19.86-16.37"/>
+              <path class="h-cls-1" d="M80.48,47.9c-5.86,6.13-15.27,6.63-21.01,1.14-5.75-5.5-5.65-14.92,.21-21.05,5.86-6.12,15.27-6.63,21.02-1.13,5.74,5.5,5.64,14.92-.22,21.04m-21.72-20.1c-6.81,7.12-6.92,18.07-.25,24.46,6.68,6.39,17.62,5.8,24.43-1.32,6.82-7.12,6.93-18.07,.25-24.46-6.67-6.39-17.61-5.8-24.43,1.32"/>
+              <path class="h-cls-3" d="M59.38,4.88c12.2-4.57,24.25,.05,26.93,10.33,2.69,10.27-5.03,22.3-17.22,26.87-12.2,4.57-24.25-.06-26.93-10.32-2.68-10.27,5.03-22.3,17.22-26.87m-11.32,3.93c-12.65,10.02-15.87,24.53-7.2,32.41,8.68,7.88,25.97,6.16,38.62-3.86,12.65-10.01,15.88-24.53,7.19-32.41-8.68-7.89-25.97-6.16-38.61,3.86"/>
+              <g>
+                <path class="h-cls-4" d="M20.54,65.15v22.67h-3.55v-11.96H3.55v11.96H0v-22.67H3.55v7.61h13.44v-7.61h3.55Z"/>
+                <path class="h-cls-4" d="M29.07,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+                <path class="h-cls-4" d="M52.27,70.78h3.49c2.21,0,3.95,.64,5.21,1.92,1.26,1.28,1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-9.77c0-2.29,.63-4.07,1.89-5.36,1.26-1.28,2.99-1.92,5.18-1.92Z"/>
+                <path class="h-cls-4" d="M79.24,85.55c-1.26,1.52-2.83,2.28-4.71,2.28h-2.19c-1.97,0-3.54-.62-4.71-1.86-1.11-1.16-1.66-2.81-1.66-4.94v-10.24h3.52v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.49v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.52v10.24c0,2.13-.57,3.78-1.72,4.94-1.17,1.24-2.74,1.86-4.74,1.86h-2.16c-1.84,0-3.38-.76-4.65-2.28Z"/>
+                <path class="h-cls-4" d="M102.92,73.86c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-22.73h3.55v6.72c1.03-.69,2.2-1.04,3.52-1.04h3.49c2.21,0,3.95,.64,5.21,1.92s1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02Z"/>
+                <path class="h-cls-4" d="M121.66,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+
+  <!-- =============================================
+       COLOR PALETTE
+  ============================================= -->
+  <section class="section palette-section" id="colors">
+    <div class="container">
+      <div class="preview-label">Color Palette</div>
+      <h2 class="section-title">브랜드 컬러</h2>
+      <span class="section-title-accent"></span>
+      <p class="section-subtitle">트라이서클에서 추출한 공식 4색 팔레트. 오렌지 에너지를 중심으로 따뜻한 크림에서 깊은 다크까지.</p>
+
+      <div class="swatch-grid">
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#ed7100;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">한화 오렌지</div>
+            <div class="swatch-hex">#ed7100</div>
+            <div class="swatch-role">메인 브랜드 · CTA · 강조</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#f4a051;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">라이트 오렌지</div>
+            <div class="swatch-hex">#f4a051</div>
+            <div class="swatch-role">보조 컬러 · 호버 상태</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#f7bb82;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">크림 오렌지</div>
+            <div class="swatch-hex">#f7bb82</div>
+            <div class="swatch-role">하이라이트 · 배경 틴트 · 배지</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#231815;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">한화 다크</div>
+            <div class="swatch-hex">#231815</div>
+            <div class="swatch-role">텍스트 · 워드마크 · 풋터</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#FFFFFF; border:1px solid #E8E0DA;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">White</div>
+            <div class="swatch-hex">#FFFFFF</div>
+            <div class="swatch-role">기본 배경 · 카드</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#FFF8F3; border:1px solid #E8E0DA;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">오프 화이트</div>
+            <div class="swatch-hex">#FFF8F3</div>
+            <div class="swatch-role">따뜻한 크림 배경</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#6B6B6B;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Gray</div>
+            <div class="swatch-hex">#6B6B6B</div>
+            <div class="swatch-role">보조 텍스트 · 캡션</div>
+          </div>
+        </div>
+        <div class="swatch fade-up">
+          <div class="swatch-color" style="background:#E8E0DA;"></div>
+          <div class="swatch-info">
+            <div class="swatch-name">Light Gray</div>
+            <div class="swatch-hex">#E8E0DA</div>
+            <div class="swatch-role">구분선 · 비활성 상태</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+
+  <!-- =============================================
+       TYPOGRAPHY
+  ============================================= -->
+  <section class="section" id="typography">
+    <div class="container">
+      <div class="preview-label">Typography</div>
+      <h2 class="section-title">타이포그래피</h2>
+      <span class="section-title-accent"></span>
+      <p class="section-subtitle">Noto Sans KR / Inter · 8단계 스케일 · 8px 기반 리듬</p>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">Display</span>
+          <span class="type-spec">56px · Weight 700 · -0.03em</span>
+        </div>
+        <p class="type-display">에너지가 삶을<br/><span style="color:var(--color-brand)">풍요롭게</span> 합니다</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">H1</span>
+          <span class="type-spec">40px · Weight 700 · -0.02em</span>
+        </div>
+        <p class="type-h1">글로벌 에너지 & 솔루션 기업</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">H2</span>
+          <span class="type-spec">32px · Weight 600 · -0.02em</span>
+        </div>
+        <p class="type-h2">한화의 사업 영역</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">H3</span>
+          <span class="type-spec">24px · Weight 600</span>
+        </div>
+        <p class="type-h3">재생에너지 · 방산 · 금융 · 레저</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">Body LG</span>
+          <span class="type-spec">18px · Weight 400 · 1.7</span>
+        </div>
+        <p class="type-body-lg">한화그룹은 에너지, 방산, 금융, 건설, 서비스 등 다양한 산업 분야에서 세계를 무대로 활동하고 있습니다. "Energy for Life"라는 브랜드 에센스 아래, 고객과 사회와 인류의 조화로운 발전을 추구합니다.</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">Body</span>
+          <span class="type-spec">16px · Weight 400 · 1.65</span>
+        </div>
+        <p class="type-body">1952년 창업 이래 한화는 끊임없는 도전과 혁신으로 성장해 왔습니다. 현재는 에너지, 항공우주, 방산, 금융, 건설 분야에서 글로벌 리더로 자리잡고 있으며, 더 나은 미래를 위한 투자를 지속하고 있습니다.</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">Body SM</span>
+          <span class="type-spec">14px · Weight 400 · 1.6 · Gray</span>
+        </div>
+        <p class="type-body-sm">이 정보는 2026년 기준으로 작성되었습니다. 최신 정보는 한화 공식 홈페이지에서 확인하세요.</p>
+      </div>
+
+      <div class="type-sample fade-up">
+        <div class="type-meta">
+          <span class="type-tag">Label</span>
+          <span class="type-spec">12px · Weight 700 · uppercase · 0.06em</span>
+        </div>
+        <p class="type-label" style="color:var(--color-brand);">Energy · Innovation · Trust · Global</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+
+  <!-- =============================================
+       BUTTONS
+  ============================================= -->
+  <section class="section" style="background: var(--bg-secondary);" id="buttons">
+    <div class="container">
+      <div class="preview-label">Buttons</div>
+      <h2 class="section-title">버튼</h2>
+      <span class="section-title-accent"></span>
+
+      <div style="display:flex; flex-direction:column; gap: var(--space-xl);">
+
+        <div>
+          <p style="font-size:0.8125rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); margin-bottom:var(--space-md);">Primary</p>
+          <div style="display:flex; flex-wrap:wrap; gap:var(--space-md); align-items:center;">
+            <a href="#" class="btn btn-primary btn-sm">Small 버튼</a>
+            <a href="#" class="btn btn-primary">Default 버튼</a>
+            <a href="#" class="btn btn-primary btn-lg">Large 버튼</a>
+            <a href="#" class="btn btn-primary" style="opacity:0.4; pointer-events:none;">Disabled</a>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size:0.8125rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); margin-bottom:var(--space-md);">Secondary (Outline)</p>
+          <div style="display:flex; flex-wrap:wrap; gap:var(--space-md); align-items:center;">
+            <a href="#" class="btn btn-secondary btn-sm">Small 버튼</a>
+            <a href="#" class="btn btn-secondary">Default 버튼</a>
+            <a href="#" class="btn btn-secondary btn-lg">Large 버튼</a>
+          </div>
+        </div>
+
+        <div>
+          <p style="font-size:0.8125rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-secondary); margin-bottom:var(--space-md);">Ghost (Dark)</p>
+          <div style="display:flex; flex-wrap:wrap; gap:var(--space-md); align-items:center;">
+            <a href="#" class="btn btn-ghost btn-sm">Small 버튼</a>
+            <a href="#" class="btn btn-ghost">Default 버튼</a>
+            <a href="#" class="btn btn-ghost btn-lg">Large 버튼</a>
+          </div>
+        </div>
+
+        <div style="background:var(--color-brand); padding:var(--space-xl); border-radius:var(--radius-md);">
+          <p style="font-size:0.8125rem; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:rgba(255,255,255,0.65); margin-bottom:var(--space-md);">On Orange Background</p>
+          <div style="display:flex; flex-wrap:wrap; gap:var(--space-md); align-items:center;">
+            <a href="#" class="btn btn-white">White 버튼</a>
+            <a href="#" class="btn" style="background:transparent; border-color:rgba(255,255,255,0.7); color:#fff;">White Outline</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+
+  <!-- =============================================
+       BADGES & TAGS
+  ============================================= -->
+  <section class="section" id="badges">
+    <div class="container">
+      <div class="preview-label">Badges & Tags</div>
+      <h2 class="section-title">배지 & 태그</h2>
+      <span class="section-title-accent"></span>
+
+      <div class="badge-row fade-up">
+        <span class="badge badge-brand">한화 오렌지</span>
+        <span class="badge badge-cream">크림 오렌지</span>
+        <span class="badge badge-light">라이트 오렌지</span>
+        <span class="badge badge-dark">한화 다크</span>
+        <span class="badge badge-outline">아웃라인</span>
+        <span class="badge badge-gray">Gray</span>
+      </div>
+
+      <div class="badge-row fade-up">
+        <span class="badge badge-brand">에너지</span>
+        <span class="badge badge-cream">방산</span>
+        <span class="badge badge-outline">금융</span>
+        <span class="badge badge-gray">건설</span>
+        <span class="badge badge-light">레저</span>
+        <span class="badge badge-dark">항공우주</span>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+
+  <!-- =============================================
+       CARDS
+  ============================================= -->
+  <section class="section" style="background: var(--bg-secondary);" id="cards">
+    <div class="container">
+      <div class="preview-label">Cards</div>
+      <h2 class="section-title">카드 컴포넌트</h2>
+      <span class="section-title-accent"></span>
+      <p class="section-subtitle">호버 시 오렌지 그림자와 부드러운 상승 효과.</p>
+
+      <div class="grid-3">
+
+        <div class="card fade-up">
+          <div class="card-img">
+            <div class="card-img-placeholder">⚡</div>
+          </div>
+          <div class="card-body">
+            <span class="card-badge">에너지</span>
+            <h3 class="card-title">한화솔루션 — 태양광 에너지</h3>
+            <p class="card-desc">글로벌 태양광 시장을 선도하는 한화솔루션의 혁신적인 에너지 기술과 지속가능한 미래를 위한 솔루션.</p>
+            <div class="card-footer">
+              <span class="card-meta">2026.04.20</span>
+              <a href="#" class="card-link">자세히 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card fade-up">
+          <div class="card-img">
+            <div class="card-img-placeholder">🛡️</div>
+          </div>
+          <div class="card-body">
+            <span class="card-badge">방산</span>
+            <h3 class="card-title">한화에어로스페이스 — 방산·항공</h3>
+            <p class="card-desc">첨단 방산 기술과 항공우주 역량으로 국가 안보와 미래 모빌리티를 동시에 선도.</p>
+            <div class="card-footer">
+              <span class="card-meta">2026.04.18</span>
+              <a href="#" class="card-link">자세히 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card fade-up">
+          <div class="card-img">
+            <div class="card-img-placeholder">💼</div>
+          </div>
+          <div class="card-body">
+            <span class="card-badge">금융</span>
+            <h3 class="card-title">한화생명 — 금융 서비스</h3>
+            <p class="card-desc">고객의 삶 전반을 보호하고 자산을 불려가는 종합 금융 서비스. 더 안전한 내일을 설계합니다.</p>
+            <div class="card-footer">
+              <span class="card-meta">2026.04.15</span>
+              <a href="#" class="card-link">자세히 보기 →</a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       STATS
+  ============================================= -->
+  <section class="section stats-section" id="stats">
+    <div class="container">
+      <div class="preview-label">Statistics</div>
+      <h2 class="section-title">한화, 숫자로 보다</h2>
+      <span class="section-title-accent"></span>
+
+      <div class="grid-4">
+        <div class="stat-card fade-up">
+          <div class="stat-number">80+</div>
+          <div class="stat-label">글로벌 거점 국가</div>
+        </div>
+        <div class="stat-card fade-up">
+          <div class="stat-number">70년</div>
+          <div class="stat-label">기업 역사</div>
+        </div>
+        <div class="stat-card fade-up">
+          <div class="stat-number">60,000+</div>
+          <div class="stat-label">임직원 수</div>
+        </div>
+        <div class="stat-card fade-up">
+          <div class="stat-number">#1</div>
+          <div class="stat-label">글로벌 태양광 모듈</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       FORM INPUTS
+  ============================================= -->
+  <section class="section" id="forms">
+    <div class="container">
+      <div class="preview-label">Form Inputs</div>
+      <h2 class="section-title">폼 컴포넌트</h2>
+      <span class="section-title-accent"></span>
+
+      <div style="max-width:560px;">
+        <div class="form-group fade-up">
+          <label for="name">이름</label>
+          <input type="text" id="name" placeholder="홍길동" />
+        </div>
+        <div class="form-group fade-up">
+          <label for="email">이메일</label>
+          <input type="email" id="email" placeholder="hong@hanwha.com" />
+        </div>
+        <div class="form-group fade-up">
+          <label for="message">메시지</label>
+          <textarea id="message" placeholder="문의 내용을 입력해 주세요."></textarea>
+        </div>
+        <div class="fade-up" style="display:flex; gap:var(--space-md);">
+          <button class="btn btn-primary">제출하기</button>
+          <button class="btn btn-secondary">초기화</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       ORANGE BAND (CTA)
+  ============================================= -->
+  <section class="cta-band" id="cta">
+    <div class="container">
+      <div class="cta-band-inner fade-up">
+        <p class="cta-band-eyebrow">Join Hanwha</p>
+        <h2 class="cta-band-title">함께 에너지를 만들어 가실 분을<br/>기다립니다</h2>
+        <p class="cta-band-desc">한화의 여정에 함께하세요. 혁신을 향한 열정과 도전 정신을 가진 인재를 찾고 있습니다.</p>
+        <div class="cta-band-buttons">
+          <a href="#" class="btn btn-white btn-lg">채용 공고 보기</a>
+          <a href="#" class="btn btn-lg" style="background:transparent; border-color:rgba(255,255,255,0.6); color:#fff;">인재상 알아보기 →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =============================================
+       FOOTER
+  ============================================= -->
+  <footer class="footer" id="footer">
+    <div class="container">
+      <div class="footer-top">
+
+        <div>
+          <div class="footer-logo-wrap">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 134.47 87.83" role="img" aria-label="한화 로고 (풋터)" style="height:44px; width:auto;">
+              <title>한화 로고</title>
+              <defs><style>.f-cls-1{fill:#f4a051}.f-cls-2{fill:#f7bb82}.f-cls-3{fill:#ed7100}.f-cls-4{fill:rgba(255,255,255,0.85)}</style></defs>
+              <path class="f-cls-2" d="M59.07,29.06c-.81-7.37,6.92-13.28,17.26-13.2,10.34,.08,19.38,6.12,20.19,13.48,.82,7.37-6.9,13.28-17.25,13.2-10.34-.08-19.39-6.11-20.2-13.48m39.37,2.29c-.94-9.14-11.34-16.62-23.24-16.73-11.91-.1-20.79,7.23-19.86,16.37,.93,9.14,11.34,16.63,23.24,16.73,11.9,.1,20.8-7.23,19.86-16.37"/>
+              <path class="f-cls-1" d="M80.48,47.9c-5.86,6.13-15.27,6.63-21.01,1.14-5.75-5.5-5.65-14.92,.21-21.05,5.86-6.12,15.27-6.63,21.02-1.13,5.74,5.5,5.64,14.92-.22,21.04m-21.72-20.1c-6.81,7.12-6.92,18.07-.25,24.46,6.68,6.39,17.62,5.8,24.43-1.32,6.82-7.12,6.93-18.07,.25-24.46-6.67-6.39-17.61-5.8-24.43,1.32"/>
+              <path class="f-cls-3" d="M59.38,4.88c12.2-4.57,24.25,.05,26.93,10.33,2.69,10.27-5.03,22.3-17.22,26.87-12.2,4.57-24.25-.06-26.93-10.32-2.68-10.27,5.03-22.3,17.22-26.87m-11.32,3.93c-12.65,10.02-15.87,24.53-7.2,32.41,8.68,7.88,25.97,6.16,38.62-3.86,12.65-10.01,15.88-24.53,7.19-32.41-8.68-7.89-25.97-6.16-38.61,3.86"/>
+              <g>
+                <path class="f-cls-4" d="M20.54,65.15v22.67h-3.55v-11.96H3.55v11.96H0v-22.67H3.55v7.61h13.44v-7.61h3.55Z"/>
+                <path class="f-cls-4" d="M29.07,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+                <path class="f-cls-4" d="M52.27,70.78h3.49c2.21,0,3.95,.64,5.21,1.92,1.26,1.28,1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-9.77c0-2.29,.63-4.07,1.89-5.36,1.26-1.28,2.99-1.92,5.18-1.92Z"/>
+                <path class="f-cls-4" d="M79.24,85.55c-1.26,1.52-2.83,2.28-4.71,2.28h-2.19c-1.97,0-3.54-.62-4.71-1.86-1.11-1.16-1.66-2.81-1.66-4.94v-10.24h3.52v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.49v10.27c0,1.24,.27,2.15,.8,2.72,.61,.65,1.41,.98,2.4,.98h1.54c1.01,0,1.82-.33,2.43-.98,.55-.57,.83-1.48,.83-2.72v-10.27h3.52v10.24c0,2.13-.57,3.78-1.72,4.94-1.17,1.24-2.74,1.86-4.74,1.86h-2.16c-1.84,0-3.38-.76-4.65-2.28Z"/>
+                <path class="f-cls-4" d="M102.92,73.86c-1.26,0-2.25,.42-2.96,1.27-.51,.65-.77,1.69-.77,3.11v9.59h-3.55v-22.73h3.55v6.72c1.03-.69,2.2-1.04,3.52-1.04h3.49c2.21,0,3.95,.64,5.21,1.92s1.89,3.07,1.89,5.36v9.77h-3.55v-9.59c0-1.42-.28-2.46-.83-3.11-.69-.85-1.69-1.27-2.99-1.27h-3.02Z"/>
+                <path class="f-cls-4" d="M121.66,87.83c-1.66,0-2.97-.46-3.94-1.39-.99-.93-1.48-2.12-1.48-3.58v-1.21c0-1.48,.49-2.68,1.48-3.61,.97-.95,2.28-1.42,3.94-1.42h9.26v-.09c0-1.82-1-2.72-2.99-2.72h-10.3v-3.02h10.24c2.13,0,3.76,.54,4.88,1.63,1.14,1.05,1.72,2.57,1.72,4.56v6.01c0,1.54-.52,2.75-1.57,3.64-.95,.81-2.28,1.21-4,1.21h-7.25Zm6.48-8.2h-5.62c-1.82,0-2.72,.77-2.72,2.31v.56c0,1.52,.91,2.28,2.72,2.28h5.62c1.85,0,2.78-.76,2.78-2.28v-.56c0-1.54-.93-2.31-2.78-2.31Z"/>
+              </g>
+            </svg>
+          </div>
+          <p class="footer-tagline">Energy for Life<br/>고객·사회·인류의 조화로운 발전을 위해</p>
+        </div>
+
+        <div>
+          <p class="footer-col-title">사업 영역</p>
+          <ul class="footer-links">
+            <li><a href="#">에너지</a></li>
+            <li><a href="#">방산·항공우주</a></li>
+            <li><a href="#">금융</a></li>
+            <li><a href="#">건설</a></li>
+            <li><a href="#">레저·서비스</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <p class="footer-col-title">기업 정보</p>
+          <ul class="footer-links">
+            <li><a href="#">기업 소개</a></li>
+            <li><a href="#">경영진</a></li>
+            <li><a href="#">지속가능경영</a></li>
+            <li><a href="#">뉴스룸</a></li>
+            <li><a href="#">IR</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <p class="footer-col-title">채용</p>
+          <ul class="footer-links">
+            <li><a href="#">채용 공고</a></li>
+            <li><a href="#">인재상</a></li>
+            <li><a href="#">복리후생</a></li>
+            <li><a href="#">인턴십</a></li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="footer-bottom">
+        <p class="footer-copy">
+          <span class="footer-brand-dot"></span>
+          © 2026 ㈜한화 (Hanwha Corporation). All rights reserved.
+        </p>
+        <div style="display:flex; gap:var(--space-lg);">
+          <a href="#" style="font-size:0.8125rem; color:rgba(255,255,255,0.35);">개인정보처리방침</a>
+          <a href="#" style="font-size:0.8125rem; color:rgba(255,255,255,0.35);">이용약관</a>
+          <a href="#" style="font-size:0.8125rem; color:rgba(255,255,255,0.35);">사이트맵</a>
+        </div>
+      </div>
+
+    </div>
+  </footer>
+
+
+  <!-- =============================================
+       JAVASCRIPT
+  ============================================= -->
+  <script>
+    // Nav shrink on scroll
+    const nav = document.getElementById('mainNav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 60);
+    }, { passive: true });
+
+    // Scroll-triggered fade-in
+    const fadeEls = document.querySelectorAll('.fade-up');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -48px 0px' });
+
+    fadeEls.forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>
