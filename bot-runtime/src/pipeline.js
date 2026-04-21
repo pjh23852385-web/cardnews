@@ -1088,72 +1088,27 @@ ${copySummary}
   parts.push('📊 카피 분석');
   parts.push(artJson.analysis);
   parts.push('');
-  // 텔레그램에는 옵션명 리스트 + 갤러리 URL만. 상세는 갤러리에서 봄.
-  const optionNames = artJson.options.map(o => `${o.id} ${o.name}`).join('\n');
-  await sendMessage(bots.artDirector, `${artJson.options.length}개 옵션 나왔어:\n${optionNames}\n\n갤러리에서 비교: http://localhost:4000`);
+  // 텔레그램에 옵션 계획만 먼저 보여주고 피드백 대기.
+  // 각 옵션별 3D/인터랙션 계획도 포함해서 보여줌.
+  const planLines = artJson.options.map(o => {
+    const inter = (o.interaction || '').slice(0, 80);
+    return `${o.id} ${o.name}\n   ${inter}${o.interaction?.length > 80 ? '...' : ''}`;
+  }).join('\n');
 
-  await sendMessage(bots.editor, `아트 좋네. 미리보기 만든다.\n\n`);
+  // 3500자 초과 시 앞부분만 메시지, 나머지는 잘라냄
+  const planMsg = planLines.length > 3500 ? planLines.slice(0, 3500) + '\n...(이하 생략)' : planLines;
+  await sendMessage(bots.artDirector, `${artJson.options.length}개 디자인 계획:\n\n${planMsg}\n\n피드백 주면 반영하고, "미리보기 만들어"하면 제작 들어간다.`);
 
-  // 미리보기 생성 (카피 사용 — 아래 수정)
-  await sendMessage(
-    bots.editor,
-    `아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초. 실제 카피 헤드라인 그대로 들어갑니다.\n\n`,
-  );
-
-  let previews = [];
-  try {
-    previews = await generateOptionPreviews(s, artJson.options, audience);
-    if (previews.length > 0) {
-      await sendMessage(bots.artDirector, `미리보기 ${previews.length}개 첨부 + 갤러리에서 비교:\nhttp://localhost:4000\n\n`);
-      for (const p of previews) {
-        try { await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`); }
-        catch (e) { log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e); }
-      }
-      updateSession({ previewAttachments: previews });
-    }
-  } catch (e) {
-    log.error('PREVIEW', '미리보기 생성 실패', e);
-    await sendMessage(bots.editor, `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n`);
-  }
-
-  // 편집장 추천 정리
-  await typing(bots.editor);
-  const options = artJson?.options || [];
-  const summaryPrompt = `아트가 3옵션 제안. 주현대리께 추천 메시지 작성.
-
-옵션:
-${JSON.stringify(options, null, 2)}
-
-오디언스: ${audience}
-
-요구사항:
-- 오디언스 기준으로 **딱 하나** 추천 + 한 줄 이유
-- 추천을 "추천: ①" 같이 명시
-- "①~⑩ 중 어떤 걸로?" 질문 (복수 킵도 OK 한 줄 추가)
-- "갤러리(localhost:4000)에서 미리보기 비교 가능" 한 줄 추가
-- 3~6줄
-- 끝에 " (체크포인트 ②)"`;
-
-  const { text: summaryMsg } = await callAgent(editorSystem, summaryPrompt, {
-    model: models.main,
-    maxTokens: 400,
-  });
-  const recMatch = summaryMsg.match(/추천[\s:]*([①②③④⑤⑥⑦⑧⑨⑩])/);
-  const recommendedOption = recMatch ? recMatch[1] : null;
-  await sendMessage(bots.editor, summaryMsg);
-
-  // 갤러리 URL 안내
-  await sendMessage(
-    bots.artDirector,
-    `프리뷰 갤러리에서 ${options.length}개 디자인을 비교해봐:\nhttp://localhost:4000\n\nDesktop/Mobile 뷰 전환도 가능해.\n\n`,
-  );
-
+  // 미리보기는 바로 만들지 않음 — 피드백 대기
+  // 사용자가 "미리보기 만들어" / "OK" / 옵션 선택하면 그때 생성
   updateSession({
     state: STATES.AWAITING_OPTION,
-    options,
-    recommendedOption,
+    options: artJson.options,
+    previewsGenerated: false,
   });
-  log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${options.length}`);
+  log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${artJson.options.length} (plan only, no previews yet)`);
+
+  await sendMessage(bots.editor, `@주현대리 옵션 계획 봐. 피드백 있으면 줘. 없으면 번호 골라 ("①" / "①③") — 그러면 미리보기 만들고 풀 제작 간다.`);
 }
 
 // ──────────────────────────────────────────────
@@ -1361,10 +1316,13 @@ ${HANWHA_LOGO_RULE}
 - 인터랙션: Three.js 배경, 카드 flip, glow pulse 등 **명시된 모든 효과**가 JS+CSS 모두 구현됐는가
 - 빠진 효과가 하나라도 있으면 **실패** — 추가해서 다시 출력하라
 
-### F. 모바일 + 웹뷰 최적화
+### F. 슬라이드 세로 정렬 + 모바일 최적화 (전 슬라이드 일괄 적용)
+- **모든 슬라이드 세로 중앙 정렬** (필수 — 특정 슬라이드만 X, 전체 일괄):
+  \`.swiper-slide { display:flex; flex-direction:column; justify-content:center; align-items:center; min-height:100vh; }\`
+- **상하 여백 균형**: 위로 쏠리지 않게. 헤더/본문/하단 요소에 flex 공간 분배
 - **모바일 여백**: 화면에 꽉 차지 않게. padding \`clamp(24px,5vw,64px)\` 사용. 좌우 최소 24px, 카드 내부 최소 20px
 - **모바일 폰트**: clamp()로 자동 스케일. 헤드라인 \`clamp(24px,5vw,48px)\`, 본문 \`clamp(14px,1.4vw,16px)\`
-- **미리보기↔배포 사이즈 동일**: Swiper 높이 100vh, 카드 max-width 동일하게. 미리보기와 풀 빌드가 같은 뷰포트에서 같은 결과
+- **미리보기↔배포 사이즈 동일**: Swiper 높이 100vh, 카드 max-width 동일하게
 - **터치 영역**: 버튼/링크 최소 44x44px
 
 ### G. 폰트 선택 근거 설명
