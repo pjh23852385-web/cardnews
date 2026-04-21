@@ -1789,13 +1789,12 @@ export async function handleFinalConfirm() {
     const url = urlMatch ? urlMatch[0] : null;
 
     if (url) {
-      // canonical URL 추정 (프로젝트명.vercel.app)
-      const canonical = `https://${projectName}.vercel.app`;
-      updateSession({ deployUrl: canonical });
+      // vercel deploy stdout에서 나온 실제 URL 사용 (랜덤 suffix 포함)
+      updateSession({ deployUrl: url });
 
       await sendMessage(
         bots.editor,
-        `@주현대리 다 됐어요. 🎉\n\n${canonical}\n\n이번 편 진짜 잘 나왔어요. PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
+        `@주현대리 다 됐어요 🎉\n\n${url}\n\nPC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
       );
     } else {
       await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n— 편집장`);
@@ -1846,13 +1845,13 @@ export async function handleFinalDeploy(finalId, finalVersion) {
       { cwd: finalDir, maxBuffer: 10 * 1024 * 1024 },
     );
     const urlMatch = stdout.match(/https:\/\/[a-z0-9.-]+\.vercel\.app/);
-    const canonical = `https://${projectName}.vercel.app`;
+    const deployedUrl = urlMatch ? urlMatch[0] : null;
 
-    if (urlMatch) {
-      updateSession({ deployUrl: canonical });
+    if (deployedUrl) {
+      updateSession({ deployUrl: deployedUrl });
       await sendMessage(
         bots.editor,
-        `@주현대리 다 됐어요 🎉\n\n${canonical}\n\n(${finalId} ${target.v === versions[versions.length-1].v ? '최신' : 'v' + target.v} 버전) PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
+        `@주현대리 다 됐어요 🎉\n\n${deployedUrl}\n\n(${finalId} ${target.v === versions[versions.length-1].v ? '최신' : 'v' + target.v} 버전) PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
       );
     } else {
       await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n— 편집장`);
