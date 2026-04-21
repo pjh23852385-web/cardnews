@@ -8,6 +8,7 @@ export const STATES = {
   IDLE: 'idle',
   AWAITING_AUDIENCE: 'awaiting_audience',          // ✋ 체크포인트 ①
   AWAITING_SCOPE: 'awaiting_scope',                // 소스에 주제 여러 개일 때
+  AWAITING_VOLUME_CONFIRM: 'awaiting_volume_confirm',// 분량 확인 대기 — 카피 생성 전
   AWAITING_COPY_APPROVAL: 'awaiting_copy_approval',// ✋ 체크포인트 ①.5 — 카피 검토·수정·승인
   AWAITING_OPTION: 'awaiting_option',              // ✋ 체크포인트 ② — 스타일 프리뷰 중 복수 선택
   AWAITING_CONTENT_SUPPLEMENT: 'awaiting_content_supplement',

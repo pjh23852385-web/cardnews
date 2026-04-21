@@ -868,12 +868,51 @@ export async function handleAudienceAnswer(rawAnswer) {
     model: models.main,
     maxTokens: 400,
   });
-  await sendMessage(bots.editor, `톤 브리핑\n${briefing}\n\n카피 두 버전 병렬로 뽑고(A/B 비교) 내용 합의한 뒤에 아트 옵션 간다.`);
+  await sendMessage(bots.editor, `톤 브리핑\n${briefing}`);
 
-  // 카피라이터 착수 리액션
+  // ── 분량 확인 단계: 소스 항목 카운트 후 주현대리에게 확인 ──
+  await typing(bots.copywriter);
+  const volumePrompt = `소스 본문을 읽고 데이터 포인트(수치, 팩트, 시사점)를 전부 세.
+JSON으로만 답해:
+\`\`\`json
+{"count": 숫자, "estimated_slides": 숫자, "summary": "주요 항목 나열 (3줄 이내)"}
+\`\`\`
+
+소스:
+${s.sourceText.slice(0, 8000)}`;
+
+  let volumeCount = 0;
+  let estimatedSlides = 0;
+  let volumeSummary = '';
+  try {
+    const volRes = await callAgent(await loadAgentSystem('copywriter'), volumePrompt, {
+      model: models.main, maxTokens: 500, json: true,
+    });
+    if (volRes.json) {
+      volumeCount = volRes.json.count || 0;
+      estimatedSlides = volRes.json.estimated_slides || volumeCount;
+      volumeSummary = volRes.json.summary || '';
+    }
+  } catch { /* 실패 시 기본값으로 진행 */ }
+
+  if (volumeCount > 0) {
+    await sendMessage(bots.copywriter,
+      `소스 확인. 데이터 포인트 ${volumeCount}개 발견.\n예상 슬라이드 ${estimatedSlides}장.\n${volumeSummary}\n\n이 정도면 괜찮아? 조정하려면 숫자 말해. 확정되면 "OK" 해.`
+    );
+    updateSession({ state: STATES.AWAITING_VOLUME_CONFIRM, volumeCount, estimatedSlides });
+    return;
+  }
+
+  // 카운트 실패 시 바로 카피 생성
+  await _startCopyGeneration();
+}
+
+/**
+ * 카피 A/B 병렬 생성 시작 (handleAudienceAnswer + AWAITING_VOLUME_CONFIRM 에서 공용)
+ */
+async function _startCopyGeneration() {
+  const s = getSession();
   await sendMessage(bots.copywriter, `Opus + GPT-5 두 버전 동시에 뽑는다. 60초.`);
-
-  // 병렬 호출 (Opus + GPT) — 한쪽 실패해도 다른 쪽으로 진행
   await typing(bots.copywriter);
   log.info('COPY_DRAFT', 'dual.start — Opus + GPT parallel');
   const [opusR, gptR] = await Promise.allSettled([
@@ -1896,6 +1935,28 @@ export async function handleUserText(text) {
 
   // 상태에 따라 라우팅
   switch (s.state) {
+    case STATES.AWAITING_VOLUME_CONFIRM: {
+      // 분량 확인 응답: OK / 숫자 조정 / 취소
+      const lower = text.trim().toLowerCase();
+      if (/취소|리셋|초기화/.test(lower)) {
+        await sendMessage(bots.editor, `작업 취소.`);
+        resetSession();
+        break;
+      }
+      // 숫자가 있으면 슬라이드 수 조정
+      const numMatch = text.match(/(\d+)/);
+      if (numMatch) {
+        const adjusted = parseInt(numMatch[1]);
+        updateSession({ estimatedSlides: adjusted });
+        await sendMessage(bots.copywriter, `슬라이드 ${adjusted}장 기준으로 카피 뽑는다.`);
+      } else {
+        await sendMessage(bots.copywriter, `OK. 슬라이드 ${s.estimatedSlides}장 기준으로 카피 뽑는다.`);
+      }
+      // 카피 A/B 병렬 생성 시작 — handleAudienceAnswer의 카피 생성 부분 재진입
+      await _startCopyGeneration();
+      break;
+    }
+
     case STATES.AWAITING_AUDIENCE:
       await handleAudienceAnswer(text);
       break;
