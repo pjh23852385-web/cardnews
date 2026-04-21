@@ -1035,10 +1035,25 @@ export async function proposeArtOptions() {
 
   // 사용자 디자인 선호 (세션에 저장된 것)
   const designPref = s.designPreference;
-  let designPrefText = '없음  톤/오디언스에 맞게 자유롭게 선택';
+  let designPrefText = '없음 — 아래 강제 배정 브랜드 기반으로';
   if (designPref && designPref.requestedBrands?.length > 0) {
     designPrefText = `사용자 지정: ${designPref.requestedBrands.join(' + ')}${designPref.mixMode ? ' (믹스)' : ''}`;
   }
+
+  // 카탈로그에서 10개 브랜드 랜덤 샘플링 → 각 옵션에 강제 배정 (중복 방지)
+  const circledNums = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+  const shuffled = [...catalog.cards].sort(() => Math.random() - 0.5);
+  let assigned10 = shuffled.slice(0, 10);
+  // 사용자 지정 브랜드가 있으면 ① 슬롯에 강제 배정
+  if (designPref?.requestedBrands?.length > 0) {
+    const userBrand = catalog.cards.find(c => designPref.requestedBrands.includes(c.name));
+    if (userBrand) {
+      assigned10 = [userBrand, ...assigned10.filter(b => b.name !== userBrand.name)].slice(0, 10);
+    }
+  }
+  const brandAssignment = assigned10.map((b, i) =>
+    `${circledNums[i]} = **${b.name}** (${b.category} | ${b.colors}) → 이 브랜드의 색상·톤을 기반으로 디자인`
+  ).join('\n');
 
   const copySummary = JSON.stringify(s.copyDraft, null, 2).slice(0, 6000);
   const artPrompt = `카드뉴스 카피가 이미 확정됐어. 이 카피의 **톤·구조·강조 포인트**에 최적화된 디자인×인터랙션 3옵션을 JSON으로만. 자연어 설명 일체 금지.
@@ -1046,17 +1061,11 @@ export async function proposeArtOptions() {
 오디언스: ${audience}
 ${userNotesText}
 
-## 🎨 사용 가능한 디자인 레퍼런스 라이브러리 (${catalog.cards.length}개 브랜드)
-아래 카탈로그에서 각 옵션에 어울리는 브랜드를 골라. reference_brands 에 명시하면 HTML 생성 시 해당 브랜드의 **실제 색상·폰트·컴포넌트 규격**이 자동으로 적용됨.
+## 강제 브랜드 배정 (각 옵션에 아래 브랜드를 반드시 사용)
+${brandAssignment}
 
-\`\`\`
-brand | category | colors | mood
-${catalog.summary}
-\`\`\`
-
-## 사용자 디자인 선호
-${designPrefText}
-${designPref?.requestedBrands?.length > 0 ? '→ 최소 1개 옵션에 이 브랜드를 반영할 것.' : ''}
+각 옵션의 reference_brands에 위 배정된 브랜드를 그대로 넣어. HTML 생성 시 해당 브랜드의 **실제 색상·폰트·컴포넌트 규격**이 자동으로 적용됨.
+${designPref?.requestedBrands?.length > 0 ? `\n사용자 지정 브랜드(${designPref.requestedBrands.join(', ')})는 ① 슬롯에 강제 배정.` : ''}
 
 ## 기본 스타일 참고: ${design.name}
 ${design.content.slice(0, 600)}
