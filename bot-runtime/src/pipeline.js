@@ -1996,6 +1996,12 @@ export async function handleUserText(text) {
 
   if (!s) {
     // 세션 없음
+    // URL이 포함된 메시지 감지 (URL만 있으면 웹 소스로, 텍스트+URL이면 URL 소스)
+    const urlInText = text.match(/https?:\/\/\S+/);
+    if (urlInText && text.trim().length < 500) {
+      await handleUrlSource(urlInText[0]);
+      return;
+    }
     // 긴 본문이면 바로 소스로 (500자 이상)
     if (text.length > 500) {
       await handleSourceReceived(text);
@@ -2901,4 +2907,147 @@ ${questions.map((q) => `- ${q}`).join('\n')}
 
   const { text } = await callAgent(editorSystem, prompt, { model: models.main, maxTokens: 500 });
   await sendMessage(bots.editor, text);
+}
+
+// ──────────────────────────────────────────────
+// URL 소스 처리 — 웹페이지 텍스트 추출 후 handleSourceReceived로 전달
+// ──────────────────────────────────────────────
+
+/**
+ * HTML에서 읽을 수 있는 텍스트만 추출 (script/style/nav 제거)
+ */
+function extractReadableText(html) {
+  // script, style, nav, header, footer 태그 제거
+  let cleaned = html
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+    .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+    .replace(/<header[\s\S]*?<\/header>/gi, '');
+
+  // 제목 태그 → 마크다운 헤딩
+  cleaned = cleaned
+    .replace(/<h1[^>]*>([\s\S]*?)<\/h1>/gi, '\n# $1\n')
+    .replace(/<h2[^>]*>([\s\S]*?)<\/h2>/gi, '\n## $1\n')
+    .replace(/<h3[^>]*>([\s\S]*?)<\/h3>/gi, '\n### $1\n')
+    .replace(/<h4[^>]*>([\s\S]*?)<\/h4>/gi, '\n#### $1\n');
+
+  // li → 불릿
+  cleaned = cleaned.replace(/<li[^>]*>([\s\S]*?)<\/li>/gi, '- $1\n');
+
+  // p, br → 줄바꿈
+  cleaned = cleaned
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n\n')
+    .replace(/<\/div>/gi, '\n');
+
+  // 나머지 태그 제거
+  cleaned = cleaned.replace(/<[^>]+>/g, '');
+
+  // HTML 엔티티 디코딩
+  cleaned = cleaned
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#\d+;/g, '');
+
+  // 연속 공백/빈줄 정리
+  cleaned = cleaned
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return cleaned;
+}
+
+/**
+ * URL을 소스로 받아 웹페이지 텍스트를 추출하고 카드뉴스 파이프라인에 진입.
+ * 세션이 이미 있으면 handleUserText로 위임 (기존 흐름 유지).
+ */
+export async function handleUrlSource(url) {
+  const s = getSession();
+
+  // 세션 진행 중이면 일반 텍스트로 처리 (URL이 체크포인트 응답일 수 있음)
+  if (s && s.state !== STATES.IDLE) {
+    await handleUserText(url);
+    return;
+  }
+
+  await typing(bots.editor);
+  await sendMessage(bots.editor, `URL 받았어. 웹페이지 내용 가져오는 중...`);
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HanwhaDesignSchool/1.0)',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'ko-KR,ko;q=0.9,en;q=0.8',
+      },
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      await sendMessage(bots.editor, `⚠️ URL 접근 실패 (HTTP ${res.status}). 접근 가능한 URL인지 확인해줘.\n\n— 편집장`);
+      return;
+    }
+
+    const contentType = res.headers.get('content-type') || '';
+
+    // PDF URL인 경우 — 바이너리 다운로드 후 pdf-parse
+    if (contentType.includes('application/pdf') || url.toLowerCase().endsWith('.pdf')) {
+      const pdfParse = (await import('pdf-parse')).default;
+      const buf = Buffer.from(await res.arrayBuffer());
+      const pdfData = await pdfParse(buf);
+      const sourceText = pdfData.text;
+
+      if (!sourceText || sourceText.trim().length < 20) {
+        await sendMessage(bots.editor, `⚠️ PDF에서 텍스트가 거의 없어. 스캔 이미지 PDF면 텍스트 추출 안 돼.\n\n— 편집장`);
+        return;
+      }
+
+      // 저장
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const slug = new URL(url).pathname.split('/').filter(Boolean).pop() || `url-${Date.now()}`;
+      const savePath = path.join(paths.sourcesDir, ym, `${slug}.md`);
+      await fs.mkdir(path.dirname(savePath), { recursive: true });
+      await fs.writeFile(savePath, `---\nsource_type: pdf_url\nsource_url: ${url}\npages: ${pdfData.numpages}\n---\n\n${sourceText}`, 'utf-8');
+
+      log.info('URL_PDF', `${url} → ${sourceText.length}자, ${pdfData.numpages}p`);
+      await sendMessage(bots.editor, `PDF 내용 추출 완료 (${pdfData.numpages}페이지, ${sourceText.length}자). 분석 들어갈게.`);
+      await handleSourceReceived(sourceText, url);
+      return;
+    }
+
+    // HTML 웹페이지인 경우
+    const html = await res.text();
+    const sourceText = extractReadableText(html);
+
+    if (!sourceText || sourceText.length < 50) {
+      await sendMessage(bots.editor, `⚠️ 페이지에서 텍스트를 거의 못 뽑았어. JavaScript로만 렌더링되는 페이지일 수 있어. 내용 복붙해서 보내줘.\n\n— 편집장`);
+      return;
+    }
+
+    // 저장
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const slug = new URL(url).hostname.replace(/\./g, '-') + '-' + Date.now();
+    const savePath = path.join(paths.sourcesDir, ym, `${slug}.md`);
+    await fs.mkdir(path.dirname(savePath), { recursive: true });
+    await fs.writeFile(savePath, `---\nsource_type: url\nsource_url: ${url}\n---\n\n${sourceText}`, 'utf-8');
+
+    log.info('URL_HTML', `${url} → ${sourceText.length}자`);
+    await sendMessage(bots.editor, `웹페이지 내용 추출 완료 (${sourceText.length}자). 분석 들어갈게.`);
+    await handleSourceReceived(sourceText, url);
+  } catch (e) {
+    const msg = e.name === 'TimeoutError'
+      ? '⚠️ URL 응답 시간 초과 (15초). 페이지가 너무 느리거나 접근 불가.'
+      : `❌ URL 처리 실패: ${String(e.message).slice(0, 150)}`;
+    await sendMessage(bots.editor, `${msg}\n\n— 편집장`);
+    log.error('URL_FETCH', `${url}: ${e.message}`);
+  }
 }
