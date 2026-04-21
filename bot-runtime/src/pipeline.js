@@ -1092,17 +1092,9 @@ ${copySummary}
   parts.push('📊 카피 분석');
   parts.push(artJson.analysis);
   parts.push('');
-  for (const opt of artJson.options) {
-    parts.push(`${opt.id} **${opt.name}**`);
-    parts.push(`   🎨 ${opt.colors}`);
-    parts.push(`   📐 ${opt.layout}`);
-    parts.push(`   ✨ ${opt.interaction}`);
-    parts.push(`   🎯 ${opt.fits}`);
-    parts.push('');
-  }
-  if (artJson.outro_line) parts.push(artJson.outro_line);
-  parts.push('');
-  await sendMessage(bots.artDirector, `🎨 ${parts.join('\n')}`);
+  // 텔레그램에는 옵션명 리스트 + 갤러리 URL만. 상세는 갤러리에서 봄.
+  const optionNames = artJson.options.map(o => `${o.id} ${o.name}`).join('\n');
+  await sendMessage(bots.artDirector, `${artJson.options.length}개 옵션 나왔어:\n${optionNames}\n\n갤러리에서 비교: http://localhost:4000`);
 
   await sendMessage(bots.editor, `아트 좋네. 미리보기 만든다.\n\n`);
 
