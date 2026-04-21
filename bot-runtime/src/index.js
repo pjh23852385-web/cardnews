@@ -99,7 +99,7 @@ async function pollLoop() {
     // 모든 허용 그룹에 시작 인사
     for (const gid of groupIds) {
       try {
-        await sendMessage(bots.editor, `🤖 편집장 봇 대기 시작. 카드뉴스 소스를 던져주세요.`, gid);
+        await sendMessage(bots.editor, `한화디자인스쿨에 오신 것을 환영합니다\n무엇이든 제작 가능합니다\n내용만 던져주세요`, gid);
       } catch (e) {
         console.warn(`⚠️ [g:${gid}] 시작 인사 실패 (봇이 이 그룹 멤버 아닐 수 있음): ${e.message}`);
       }
