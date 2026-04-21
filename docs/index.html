@@ -41,10 +41,10 @@ html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text-prim
 .top-chapter{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.1em;text-transform:uppercase;transition:opacity .3s,transform .3s;max-width:60vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .top-counter{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-muted);letter-spacing:.08em}
 .swiper{width:100%;height:100vh;position:relative;z-index:1}
-.swiper-slide{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:100vh;overflow-y:auto;padding:80px var(--pad) 60px;word-break:keep-all;overflow-wrap:break-word}
+.swiper-slide{display:flex;flex-direction:column;justify-content:safe center;align-items:center;min-height:100vh;overflow-y:auto;padding:80px var(--pad) 60px;word-break:keep-all;overflow-wrap:break-word}
 .swiper-slide::-webkit-scrollbar{width:3px}
 .swiper-slide::-webkit-scrollbar-thumb{background:var(--text-muted);border-radius:3px}
-.slide-inner{max-width:960px;width:100%;min-width:0;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
+.slide-inner{max-width:960px;width:100%;min-width:0;margin:auto 0;opacity:0;transform:translateY(30px);transition:opacity .6s ease,transform .6s ease}
 .swiper-slide-active .slide-inner{opacity:1;transform:translateY(0)}
 .cover-inner{display:flex;flex-direction:column;align-items:center;text-align:center;gap:32px}
 .cover-headline{font-family:var(--font-sans);font-size:var(--fs-3xl);font-weight:800;line-height:1.2;letter-spacing:-.02em;color:var(--text-primary);max-width:800px}
@@ -108,9 +108,9 @@ html, body { -webkit-text-size-adjust: 100%; }
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: center !important;
+  justify-content: safe center !important;
   min-height: 100vh !important;
-  padding: clamp(24px,5vw,64px) !important;
+  padding: 72px clamp(20px,4vw,48px) 48px !important;
   box-sizing: border-box !important;
 }
 .swiper-slide::-webkit-scrollbar { width: 3px; }
@@ -171,7 +171,7 @@ html, body { -webkit-text-size-adjust: 100%; }
 <div class="swiper-slide" data-chapter="중국 AI, 토큰 전쟁의 새 승자" data-scene="cover">
 <div class="slide-inner cover-inner">
 <div class="cover-subtitle">Bloomberg 2026.04.20 — 중국 스타트업 MiniMax, 글로벌 토큰 소비량 4위 등극</div>
-<img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?w=800&h=400&fit=crop" alt="AI abstract" style="width:100%;max-width:600px;border-radius:12px;margin-bottom:24px;opacity:0.85;">
+<img src="https://images.unsplash.com/photo-1639322537228-f710d846310a?w=800&h=400&fit=crop" alt="AI abstract" style="width:100%;max-width:600px;max-height:30vh;object-fit:cover;border-radius:12px;margin-bottom:24px;opacity:0.85;">
 <h1 class="cover-headline">AI 경쟁의 판이 바뀌었다.<br>이제 모델이 아니라 <em>토큰 가격</em>이 승부를 가른다.</h1>
 <div class="cover-topics">
 <span>토큰 단가 전쟁</span>
@@ -218,7 +218,7 @@ html, body { -webkit-text-size-adjust: 100%; }
 <!-- SLIDE 5: DATA -->
 <div class="swiper-slide" data-chapter="02 — 중국의 비용 우위" data-scene="data-cost">
 <div class="slide-inner data-inner">
-<img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&h=300&fit=crop" alt="AI chips" style="width:100%;max-width:500px;border-radius:10px;margin-bottom:20px;opacity:0.8;">
+<img src="https://images.unsplash.com/photo-1620712943543-bcc4688e7485?w=800&h=300&fit=crop" alt="AI chips" style="width:100%;max-width:500px;max-height:25vh;object-fit:cover;border-radius:10px;margin-bottom:20px;opacity:0.8;">
 <h2 class="data-headline">같은 백만 토큰에 MiniMax는 <em>$1</em>,<br>Claude는 <em>$15</em> 이상이다.</h2>
 <div class="data-cards">
 <div class="data-card" data-density="sparse">
@@ -270,7 +270,7 @@ html, body { -webkit-text-size-adjust: 100%; }
 <!-- SLIDE 8: DATA -->
 <div class="swiper-slide" data-chapter="03 — 시장의 반응" data-scene="data-stock">
 <div class="slide-inner data-inner">
-<img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=300&fit=crop" alt="stock market" style="width:100%;max-width:500px;border-radius:10px;margin-bottom:20px;opacity:0.8;">
+<img src="https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800&h=300&fit=crop" alt="stock market" style="width:100%;max-width:500px;max-height:25vh;object-fit:cover;border-radius:10px;margin-bottom:20px;opacity:0.8;">
 <h2 class="data-headline">MiniMax <em>+440%</em>, Zhipu <em>+750%</em>.<br>시장은 빅테크가 아니라 신흥 플레이어에 베팅했다.</h2>
 <div class="data-cards">
 <div class="data-card">
