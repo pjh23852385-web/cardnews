@@ -2083,6 +2083,11 @@ export async function handleUserText(text) {
     }
 
     case STATES.AWAITING_AUDIENCE:
+      if (ESCAPE_PATTERN.test(text)) {
+        await sendMessage(bots.editor, `🛑 세션 리셋. 처음부터 다시 하시려면 소스 던져줘.\n\n`);
+        resetSession();
+        break;
+      }
       await handleAudienceAnswer(text);
       break;
 
@@ -2368,6 +2373,12 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
     }
 
     case STATES.AWAITING_OPTION: {
+      // 긴급 탈출 키워드 — 세션 리셋
+      if (ESCAPE_PATTERN.test(text)) {
+        await sendMessage(bots.editor, `🛑 세션 리셋. 처음부터 다시 하시려면 소스 던져줘.\n\n`);
+        resetSession();
+        break;
+      }
       // "미리보기 만들어" / "전부" / "6개" / "다 만들어" → 전체 미리보기
       const previewKeywords = /미리보기|전부|전체|다\s*(만들|줘|보여)|6개|여섯/i;
       if (previewKeywords.test(text)) {
