@@ -1186,40 +1186,53 @@ export async function handleStyleChoices(choices) {
   if (!s) return;
   if (!choices || choices.length === 0) return;
 
-  const prevState = s.state;
-  updateSession({ state: STATES.BUILDING_FULLS, styleChoices: choices });
-  log.state(prevState, STATES.BUILDING_FULLS, `choices=${choices.join('·')}`);
+  // "셋 다" / "전부" → 모든 옵션으로 미리보기
+  const allOptions = s.options || [];
+  const isAll = choices.includes('전부') || choices.includes('셋 다') || choices.includes('다');
+  const targetChoices = isAll ? allOptions.map(o => o.id) : choices;
 
-  const label = choices.join('·');
-  await sendMessage(
-    bots.editor,
-    `좋아요 @주현대리, **${label}** 풀 제작 들어갑니다.
-
-순서:
-  1️⃣ 카피 작성 (공통)
-  2️⃣ 스타일별 HTML 병렬 생성
-  3️⃣ **아트 셀프 QA** — 문장 잘림·챕터 인디케이터·타이포 스케일·인터랙션 자체 점검
-  4️⃣ **편집장 최종 체크** — 이슈 있으면 아트 재수정 후 첨부
-
-4~6분 걸려요. 다 끝나면 완성본 첨부로 보내드릴게요.
-
-`,
-  );
-  await sendMessage(
-    bots.copywriter,
-    `카피 먼저 뽑고 아트 ${choices.length}개 스타일에 넘길게요.\n\n`,
-  );
+  const label = targetChoices.join('·');
+  await sendMessage(bots.artDirector, `${label} 미리보기(3슬라이드) 만든다. 30~60초.`);
 
   const typingInterval = setInterval(() => {
-    typing(bots.copywriter).catch(() => {});
     typing(bots.artDirector).catch(() => {});
   }, 4000);
 
   try {
-    await _runStyleBuild(choices, typingInterval);
+    // 미리보기만 생성 (3슬라이드 축약)
+    const selectedOptions = allOptions.filter(o => targetChoices.includes(o.id));
+    const previews = await generateOptionPreviews(s, selectedOptions.length > 0 ? selectedOptions : allOptions, s.audience);
+
+    clearInterval(typingInterval);
+
+    if (previews.length > 0) {
+      // 갤러리 index.html 생성
+      const previewDir = path.dirname(previews[0].path);
+      await _generateGalleryIndex(previewDir, previews.map((p, i) => ({
+        id: selectedOptions[i]?.id || targetChoices[i] || `(${i+1})`,
+        name: selectedOptions[i]?.name || p.name,
+        path: p.path,
+        version: 1,
+      })));
+
+      await sendMessage(bots.artDirector, `미리보기 ${previews.length}개 완성.\n갤러리에서 비교: http://localhost:4000\n\n마음에 드는 거 골라서 "③ 컨펌" 하면 풀 제작 간다.`);
+
+      for (const p of previews) {
+        try { await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`); }
+        catch (e) { log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e); }
+      }
+      updateSession({ previewAttachments: previews });
+    }
+
+    // 풀 빌드 안 함 — AWAITING_FINAL_CHOICE로 전환, 컨펌 시에만 풀 빌드
+    updateSession({ state: STATES.AWAITING_FINAL_CHOICE, styleChoices: targetChoices });
+    log.state(s.state, STATES.AWAITING_FINAL_CHOICE, `previews=${previews.length} — waiting for confirm to full build`);
+
+    await sendMessage(bots.editor, `@주현대리 미리보기 ${previews.length}개 나왔어. 갤러리(localhost:4000)에서 비교하고 마음에 드는 번호 "컨펌" 해. 그때 풀 제작 간다.`);
+    return;
   } catch (e) {
     clearInterval(typingInterval);
-    log.error('BUILDING_FULLS', `handleStyleChoices 실패 choices=${label}`, e);
+    log.error('PREVIEW_BUILD', `handleStyleChoices 미리보기 실패 choices=${label}`, e);
     const cur = getSession();
     if (cur) {
       updateSession({ state: STATES.AWAITING_OPTION });
@@ -1857,8 +1870,30 @@ export async function handleFinalDeploy(finalId, finalVersion) {
   if (!s) return;
   const versions = s.fullVersions?.[finalId] || [];
   if (versions.length === 0) {
-    await sendMessage(bots.editor, `⚠️ ${finalId} 완성본이 세션에 없어. 처음부터 다시 할까?\n\n`);
-    return;
+    // 풀 빌드가 아직 안 됨 — 미리보기만 있는 상태. 풀 빌드 먼저 실행.
+    await sendMessage(bots.editor, `${finalId} 풀 제작 시작. 3~5분 걸린다.`);
+    const typingInterval = setInterval(() => {
+      typing(bots.artDirector).catch(() => {});
+    }, 4000);
+    try {
+      updateSession({ state: STATES.BUILDING_FULLS, styleChoices: [finalId] });
+      await _runStyleBuild([finalId], typingInterval);
+    } catch (e) {
+      clearInterval(typingInterval);
+      log.error('FULL_BUILD_ON_CONFIRM', `풀 빌드 실패 ${finalId}`, e);
+      await sendMessage(bots.editor, `⚠️ 풀 제작 실패: ${String(e.message || e).slice(0, 150)}`);
+      updateSession({ state: STATES.AWAITING_FINAL_CHOICE });
+      return;
+    }
+    // 풀 빌드 완료 후 다시 세션에서 버전 확인
+    const s2 = getSession();
+    const versions2 = s2.fullVersions?.[finalId] || [];
+    if (versions2.length === 0) {
+      await sendMessage(bots.editor, `⚠️ 풀 빌드 완료했는데 파일이 없어. 다시 시도해.`);
+      updateSession({ state: STATES.AWAITING_FINAL_CHOICE });
+      return;
+    }
+    // 풀 빌드 완료 → 배포로 계속 진행
   }
   // 버전 미지정 → 최신
   const target = finalVersion
