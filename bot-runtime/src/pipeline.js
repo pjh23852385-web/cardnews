@@ -784,18 +784,14 @@ export async function handleSourceReceived(sourceText, notionUrl = null) {
   // 편집장이 소스 분석 + 오디언스 질문 (Sonnet — 전체 본문 투입)
   await typing(bots.editor);
   const system = await loadAgentSystem('editor');
-  const userPrompt = `방금 카드뉴스 소스를 받았습니다. **본문 전체**를 읽고 오디언스 확인 메시지를 작성하세요.
+  const userPrompt = `카드뉴스 소스 받았어. 본문 전체 읽고 오디언스 확인 메시지 작성해.
 
 중요:
-1. 본문에 **'#' 대제목(H1)이 몇 개인지 세어보세요**. 각 대제목이 독립 주제일 수 있습니다.
-2. 주제 개수를 구체적으로 명시하고 "주제 N개 맞으시죠?" 확인 질문 포함
-3. 오디언스 질문: "경영진(C레벨)? 사업부장급? 일반 직원?" 선택지 제시
+1. 본문에 '#' 대제목(H1) 몇 개인지 세. 각 대제목이 독립 주제일 수 있어.
+2. 주제 개수 명시 + "주제 N개 맞지?" 확인
+3. 오디언스: "C레벨? 사업부장급? 일반 직원?" 물어봐
 
-포맷:
-📨 (주제 개수 + 각 주제 한 줄 요약)
-(오디언스 질문)
-
-3~6줄. 편집장 톤(ENFJ, 이미경+강원국).
+2~4줄. 반말. 이모지 쓰지 마. 사족 없이 직빵.
 
 ---
 본문 전체:
@@ -2544,7 +2540,7 @@ async function handleOptionRegenerate(targetIds, userNotes) {
   if (overCapMatch) {
     await sendMessage(
       bots.editor,
-      `📌 시스템은 한 번에 최대 **3개 옵션**만 제시해요 (선택 피로 방지). 3개 슬롯을 서로 확실히 다르게 다시 뽑아드릴게요.\n\n`,
+      `시스템은 한 번에 최대 3개 옵션만 제시해 (선택 피로 방지). 다시 뽑는다.`,
     );
   }
 
@@ -2687,7 +2683,7 @@ ${questions.map((q) => `- ${q}`).join('\n')}
 - 편집장 추천: ${session?.recommendedOption || '없음'}
 - 사용자 메모: ${(session?.userNotes || []).join(' / ') || '없음'}
 
-편집장 톤(ENFJ)으로 자연스럽게 답한 뒤 ${stepHint}
+짧고 직빵으로 답한 뒤 ${stepHint}
 3~6줄. 끝에 ""`;
 
   const { text } = await callAgent(editorSystem, prompt, { model: models.main, maxTokens: 500 });
