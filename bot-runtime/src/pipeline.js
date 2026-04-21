@@ -326,7 +326,7 @@ async function _presentTwoCopyDrafts(opusJson, gptJson, versionLabel) {
   const opusFirst = opusJson.slides?.find((sl) => sl.kind === 'body' || sl.headline) || {};
   const gptFirst = gptJson.slides?.find((sl) => sl.kind === 'body' || sl.headline) || {};
 
-  const compareMsg = `📝 **카피 두 버전 나왔어요 (${versionLabel})** — 비교해보세요.
+  const compareMsg = `카피 두 버전 나왔어  (${versionLabel})** — 비교해보세요.
 
 ━━ **A · Claude Opus** (총 ${opusJson.slides?.length || '?'}장) ━━
 표지: ${opusCover.headline || '(없음)'}
@@ -338,7 +338,7 @@ async function _presentTwoCopyDrafts(opusJson, gptJson, versionLabel) {
 
 두 파일 첨부 드려요 — 다 열어보시고 어느 쪽으로 갈지 "**A**" 또는 "**B**" 로 답해주세요.
 
-— 카피`;
+`;
 
   await sendMessage(bots.copywriter, compareMsg);
   try { await sendDocument(bots.copywriter, opusMdPath, `A · Claude Opus (${versionLabel})`); }
@@ -366,7 +366,7 @@ async function _presentCopyDraft(copyJson, versionLabel) {
   await fs.writeFile(mdPath, formatted, 'utf-8');
   const jsonPath = path.join(copyDir, `copy-${versionLabel}.json`);
   await fs.writeFile(jsonPath, JSON.stringify(copyJson, null, 2), 'utf-8');
-  await sendMessage(bots.copywriter, `📝 카피 초안 ${versionLabel} — 길어서 파일로 보내드려요.\n\n— 카피`);
+  await sendMessage(bots.copywriter, `카피 초안 ${versionLabel} — 길어서 파일로 보내드려요.\n\n`);
   try { await sendDocument(bots.copywriter, mdPath, `카피 ${versionLabel}`); } catch (e) {
     log.error('COPY_PRESENT', 'sendDocument 실패', e);
   }
@@ -812,7 +812,7 @@ ${sourceText}
 ---`;
 
   const { text } = await callAgent(system, userPrompt, { model: models.main, maxTokens: 800 });
-  await sendMessage(bots.editor, `${text}\n\n— 편집장 (체크포인트 ①)`);
+  await sendMessage(bots.editor, `${text}\n\n (체크포인트 ①)`);
 }
 
 // ──────────────────────────────────────────────
@@ -829,7 +829,7 @@ export async function handleAudienceAnswer(rawAnswer) {
   if (parsed.unrelated && !parsed.audience) {
     await sendMessage(
       bots.editor,
-      `@주현대리 죄송한데 오디언스부터 잡고 가야 해요. 경영진? 사업부장급? 일반 직원? 구체적으로 (예: "HR 임원 중심 경영진") 말씀 주세요.\n\n— 편집장`,
+      `@주현대리 죄송한데 오디언스부터 잡고 가야 해요. 경영진? 사업부장급? 일반 직원? 구체적으로 (예: "HR 임원 중심 경영진") 말씀 주세요.\n\n`,
     );
     return;
   }
@@ -850,30 +850,30 @@ export async function handleAudienceAnswer(rawAnswer) {
   if (parsed.questions.length > 0) {
     ack += `\n\n질문 주신 건 작업하면서 답변 드릴게요: ${parsed.questions.join(' / ')}`;
   }
-  ack += `\n\n바로 톤 잡을게요.\n\n— 편집장`;
+  ack += `\n\n바로 톤 잡을게요.\n\n`;
   await sendMessage(bots.editor, ack);
 
-  // 편집장 톤 브리핑 (Sonnet — 편집장 발화)
+  // 편집장 톤 브리핑 (Sonnet  발화)
   await typing(bots.editor);
   const editorSystem = await loadAgentSystem('editor');
   const briefingPrompt = `오디언스 확정: **${audience}**
 
-톤 브리핑을 Telegram 메시지로 작성. 포맷 고정:
-📌 용도: (오디언스가 뭘 하려고 보는가)
-🎯 시사점: (오디언스가 뭘 결정/실행해야 하는가)
-💬 톤: (격식체 / 실무체 / 캐주얼)
-⏱ 분량: (장 수 범위)
+톤 브리핑 4줄로. 이모지 쓰지 마. 포맷:
+- 용도: (오디언스가 뭘 하려고 보는가)
+- 시사점: (오디언스가 뭘 결정/실행해야 하는가)
+- 톤: (격식체 / 실무체 / 캐주얼)
+- 분량: (장 수 범위)
 
-4~5줄. 본문은 안 봐도 됨 — 오디언스만 보고 톤 판단.`;
+본문은 안 봐도 됨 — 오디언스만 보고 톤 판단.`;
 
   const { text: briefing } = await callAgent(editorSystem, briefingPrompt, {
     model: models.main,
     maxTokens: 400,
   });
-  await sendMessage(bots.editor, `📋 톤 브리핑\n${briefing}\n\n카피 먼저 두 버전 병렬로 뽑고(A·B 비교) 내용 합의한 뒤에 아트 옵션 갈게요.\n\n— 편집장`);
+  await sendMessage(bots.editor, `톤 브리핑\n${briefing}\n\n카피 두 버전 병렬로 뽑고(A/B 비교) 내용 합의한 뒤에 아트 옵션 간다.`);
 
   // 카피라이터 착수 리액션
-  await sendMessage(bots.copywriter, `받았어요. **Claude Opus**와 **GPT-5** 두 버전 동시에 뽑습니다 (약 60초).\n\n— 카피`);
+  await sendMessage(bots.copywriter, `받았어요. **Claude Opus**와 **GPT-5** 두 버전 동시에 뽑습니다 (약 60초).\n\n`);
 
   // 병렬 호출 (Opus + GPT) — 한쪽 실패해도 다른 쪽으로 진행
   await typing(bots.copywriter);
@@ -890,7 +890,7 @@ export async function handleAudienceAnswer(rawAnswer) {
     log.error('COPY_DRAFT', '양쪽 LLM 모두 실패', opusR.reason || gptR.reason);
     await sendMessage(
       bots.editor,
-      `⚠️ 카피 생성 실패 (양쪽 LLM 모두): ${String((opusR.reason || gptR.reason)?.message || '').slice(0, 150)}. 소스 다시 던져주세요.\n\n— 편집장`,
+      `⚠️ 카피 생성 실패 (양쪽 LLM 모두): ${String((opusR.reason || gptR.reason)?.message || '').slice(0, 150)}. 소스 다시 던져주세요.\n\n`,
     );
     resetSession();
     return;
@@ -917,16 +917,16 @@ export async function handleAudienceAnswer(rawAnswer) {
       bots.editor,
       `@주현대리 카피 **두 버전** (A · Opus / B · GPT-5) 받으셨어요.
 
-🔍 **비교 체크**
+비교 체크
   ✓ 헤드라인 방향 (돌직구·임팩트)
   ✓ 시사점: "${audience} 이 지금 뭘 해야 하는가" 명확한지
   ✓ 슬라이드 개수와 순서
   ✓ 데이터·숫자 강조
 
-👉 먼저 **A / B 중 하나** 골라주세요: "**A**" / "**B**" / "**Opus**" / "**GPT**"
+먼저 **A / B 중 하나** 골라주세요: "**A**" / "**B**" / "**Opus**" / "**GPT**"
 선택 후 수정 메모 쌓고 → "반영해" (v2) → "카피 OK" (아트 단계로) 순서로 진행.
 
-— 편집장 (체크포인트 ①.5a — 버전 선택)`,
+ (체크포인트 ①.5a — 버전 선택)`,
     );
     return;
   }
@@ -954,15 +954,15 @@ export async function handleAudienceAnswer(rawAnswer) {
   await fs.mkdir(copyDir, { recursive: true });
   await fs.writeFile(path.join(copyDir, `copy-v1-${chosen}.json`), JSON.stringify(chosenJson, null, 2), 'utf-8');
 
-  await sendMessage(bots.copywriter, `⚠️ ${failedSide} 버전은 실패해서 ${chosen === 'opus' ? 'Claude Opus' : 'GPT-5'} 버전 하나로 진행해요.\n\n— 카피`);
+  await sendMessage(bots.copywriter, `⚠️ ${failedSide} 버전은 실패해서 ${chosen === 'opus' ? 'Claude Opus' : 'GPT-5'} 버전 하나로 진행해요.\n\n`);
   await _presentCopyDraft(chosenJson, 'v1');
   await sendMessage(
     bots.editor,
     `@주현대리 카피 초안 (v1, 총 ${chosenJson.slides.length}장).
 
-✏️ 수정 메모 쌓고 "반영해" → v2. 만족이면 "카피 OK" → 아트 단계.
+수정 메모 쌓고 "반영해" → v2. 만족이면 "카피 OK" → 아트 단계.
 
-— 편집장 (체크포인트 ①.5)`,
+ (체크포인트 ①.5)`,
   );
 }
 
@@ -973,14 +973,14 @@ export async function proposeArtOptions() {
   const s = getSession();
   if (!s) return;
   if (!s.copyDraft) {
-    await sendMessage(bots.editor, `⚠️ 카피가 없어요. 소스 다시 주세요.\n\n— 편집장`);
+    await sendMessage(bots.editor, `⚠️ 카피가 없어요. 소스 다시 주세요.\n\n`);
     return;
   }
 
   const audience = s.audience;
   const editorSystem = await loadAgentSystem('editor');
 
-  await sendMessage(bots.artDirector, `받았어요, 편집장. 카피 보고 3가지 가져옵니다. 잠깐만요.\n\n— 아트`);
+  await sendMessage(bots.artDirector, `받았어요, 편집장. 카피 보고 3가지 가져옵니다. 잠깐만요.\n\n`);
 
   // 아트디렉터 3옵션 생성 (카피 기반 + 브랜드 카탈로그 + Three.js 레퍼런스)
   await typing(bots.artDirector);
@@ -993,7 +993,7 @@ export async function proposeArtOptions() {
 
   // 사용자 디자인 선호 (세션에 저장된 것)
   const designPref = s.designPreference;
-  let designPrefText = '없음 — 카피 톤/오디언스에 맞게 자유롭게 선택';
+  let designPrefText = '없음  톤/오디언스에 맞게 자유롭게 선택';
   if (designPref && designPref.requestedBrands?.length > 0) {
     designPrefText = `사용자 지정: ${designPref.requestedBrands.join(' + ')}${designPref.mixMode ? ' (믹스)' : ''}`;
   }
@@ -1094,7 +1094,7 @@ ${copySummary}
       if (attempt < 2) { await typing(bots.artDirector); }
     } catch (e) {
       if (attempt === 2) {
-        await sendMessage(bots.editor, `⚠️ @주현대리 아트 쪽 에러로 3옵션 생성 실패. 카피 단계에서 다시 "승인" 해주세요.\n\n— 편집장`);
+        await sendMessage(bots.editor, `⚠️ @주현대리 아트 쪽 에러로 3옵션 생성 실패. 카피 단계에서 다시 "승인" 해주세요.\n\n`);
         updateSession({ state: STATES.AWAITING_COPY_APPROVAL });
         return;
       }
@@ -1102,7 +1102,7 @@ ${copySummary}
   }
 
   if (!artJson || !Array.isArray(artJson.options) || artJson.options.length < 2) {
-    await sendMessage(bots.editor, `⚠️ 아트 3옵션 파싱 실패. 다시 "카피 OK" 주시면 재시도할게요.\n\n— 편집장`);
+    await sendMessage(bots.editor, `⚠️ 아트 3옵션 파싱 실패. 다시 "카피 OK" 주시면 재시도할게요.\n\n`);
     updateSession({ state: STATES.AWAITING_COPY_APPROVAL });
     return;
   }
@@ -1123,22 +1123,22 @@ ${copySummary}
     parts.push('');
   }
   if (artJson.outro_line) parts.push(artJson.outro_line);
-  parts.push('— 아트');
+  parts.push('');
   await sendMessage(bots.artDirector, `🎨 ${parts.join('\n')}`);
 
-  await sendMessage(bots.editor, `👍 아트, 좋네요. 미리보기 만들게요.\n\n— 편집장`);
+  await sendMessage(bots.editor, `아트 좋네. 미리보기 만든다.\n\n`);
 
   // 미리보기 생성 (카피 사용 — 아래 수정)
   await sendMessage(
     bots.editor,
-    `📐 아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초. 실제 카피 헤드라인 그대로 들어갑니다.\n\n— 편집장`,
+    `아트가 옵션마다 미리보기(3슬라이드씩) 만드는 중이에요. 30~60초. 실제 카피 헤드라인 그대로 들어갑니다.\n\n`,
   );
 
   let previews = [];
   try {
     previews = await generateOptionPreviews(s, artJson.options, audience);
     if (previews.length > 0) {
-      await sendMessage(bots.artDirector, `🎨 미리보기 ${previews.length}개 첨부 + 갤러리에서 비교:\n👉 http://localhost:4000\n\n— 아트`);
+      await sendMessage(bots.artDirector, `미리보기 ${previews.length}개 첨부 + 갤러리에서 비교:\nhttp://localhost:4000\n\n`);
       for (const p of previews) {
         try { await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`); }
         catch (e) { log.error('PREVIEW_ATTACH', `sendDocument 실패 id=${p.id}`, e); }
@@ -1147,7 +1147,7 @@ ${copySummary}
     }
   } catch (e) {
     log.error('PREVIEW', '미리보기 생성 실패', e);
-    await sendMessage(bots.editor, `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`);
+    await sendMessage(bots.editor, `⚠️ 미리보기 생성 일부 실패 (${String(e.message || e).slice(0, 150)}). 글 옵션 설명만 보고 선택해도 OK.\n\n`);
   }
 
   // 편집장 추천 정리
@@ -1166,7 +1166,7 @@ ${JSON.stringify(options, null, 2)}
 - "①~⑩ 중 어떤 걸로?" 질문 (복수 킵도 OK 한 줄 추가)
 - "갤러리(localhost:4000)에서 미리보기 비교 가능" 한 줄 추가
 - 3~6줄
-- 끝에 "— 편집장 (체크포인트 ②)"`;
+- 끝에 " (체크포인트 ②)"`;
 
   const { text: summaryMsg } = await callAgent(editorSystem, summaryPrompt, {
     model: models.main,
@@ -1179,7 +1179,7 @@ ${JSON.stringify(options, null, 2)}
   // 갤러리 URL 안내
   await sendMessage(
     bots.artDirector,
-    `🎨 프리뷰 갤러리에서 ${options.length}개 디자인을 비교해보세요:\n👉 http://localhost:4000\n\nDesktop/Mobile 뷰 전환도 가능해요.\n\n— 아트`,
+    `프리뷰 갤러리에서 ${options.length}개 디자인을 비교해보세요:\nhttp://localhost:4000\n\nDesktop/Mobile 뷰 전환도 가능해요.\n\n`,
   );
 
   updateSession({
@@ -1215,11 +1215,11 @@ export async function handleStyleChoices(choices) {
 
 4~6분 걸려요. 다 끝나면 완성본 첨부로 보내드릴게요.
 
-— 편집장`,
+`,
   );
   await sendMessage(
     bots.copywriter,
-    `카피 먼저 뽑고 아트 ${choices.length}개 스타일에 넘길게요.\n\n— 카피`,
+    `카피 먼저 뽑고 아트 ${choices.length}개 스타일에 넘길게요.\n\n`,
   );
 
   const typingInterval = setInterval(() => {
@@ -1239,7 +1239,7 @@ export async function handleStyleChoices(choices) {
     }
     await sendMessage(
       bots.editor,
-      `⚠️ @주현대리 풀 제작 중 에러: ${String(e.message || e).slice(0, 160)}\n\n스타일 재선택 또는 "취소" 가능.\n\n— 편집장`,
+      `⚠️ @주현대리 풀 제작 중 에러: ${String(e.message || e).slice(0, 160)}\n\n스타일 재선택 또는 "취소" 가능.\n\n`,
     ).catch(() => {});
   }
 }
@@ -1260,11 +1260,11 @@ async function _runStyleBuild(choices, typingInterval) {
     log.info('BUILDING_FULLS', `copy.reuse v=${s.copyRevCount || 1} slides=${copyJson.slides.length}`);
     await sendMessage(
       bots.copywriter,
-      `📝 승인받은 카피 v${s.copyRevCount || 1} (${copyJson.slides.length}장) 그대로 넘깁니다.\n\n— 카피`,
+      `📝 승인받은 카피 v${s.copyRevCount || 1} (${copyJson.slides.length}장) 그대로 넘깁니다.\n\n`,
     );
   } else {
     log.warn('BUILDING_FULLS', 'copyDraft 없음 — 레거시 세션으로 인라인 생성');
-    await sendMessage(bots.copywriter, `카피 먼저 뽑을게요 (카피 승인 단계 건너뛴 상태 — 다음 편부터는 승인 먼저).\n\n— 카피`);
+    await sendMessage(bots.copywriter, `카피 먼저 뽑을게요 (카피 승인 단계 건너뛴 상태 — 다음 편부터는 승인 먼저).\n\n`);
     copyJson = await _generateCopyJson(s);
     updateSession({ copyDraft: copyJson, copyRevCount: 1, copyApproved: true });
     log.info('BUILDING_FULLS', `copy.inline.ok slides=${copyJson.slides.length}`);
@@ -1309,7 +1309,7 @@ async function _runStyleBuild(choices, typingInterval) {
       }
     }
 
-    const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 — 카피는 고정). 한 파일 완성본.
+    const htmlPrompt = `카드뉴스 풀 HTML (스타일만 다름 는 고정). 한 파일 완성본.
 
 ## ⚠️ 이 옵션의 스타일 정체성 — 아래 내용을 100% 정확히 구현해야 함
 아트디렉터가 제안한 디자인을 **글자 그대로** 구현하라. 요약하거나 간소화하지 말 것.
@@ -1585,7 +1585,7 @@ ${html.slice(0, 15000)}
     .join(' · ');
   await sendMessage(
     bots.artDirector,
-    `🎨 풀 완성 (${builtList.length}개). QA: ${qaSummary}\n첨부로 보내드려요 — 다 열어보시고 비교해주세요.\n\n— 아트`,
+    `풀 완성 (${builtList.length}개). QA: ${qaSummary}\n첨부로 보내드려요 — 다 열어보시고 비교해주세요.\n\n`,
   );
   for (const b of builtList) {
     try {
@@ -1602,13 +1602,13 @@ ${html.slice(0, 15000)}
     `@주현대리 완성본 ${builtList.length}개 첨부 드렸어요:
   ${listLine}
 
-🔍 **배포 전 꼭 체크** — 하나씩 열어서:
+배포 전 꼭 체크** — 하나씩 열어서:
   ✓ 텍스트 (문장 잘림 / 오타 / 어색한 표현)
   ✓ 레이아웃 (여백 / 카드 배치 / 슬라이드 순서)
   ✓ 인터랙션 (hover / 카운터업 / 슬라이드 전환)
   ✓ PC + 모바일 둘 다
 
-✏️ **수정은 장표별로 자유롭게 쌓아두세요** (재생성 안 함):
+수정은 장표별로 자유롭게 쌓아두세요** (재생성 안 함):
   • "**① 1페이지 헤드라인 문장 잘림 고쳐**"
   • "**3페이지 카드 간격 넓혀**"
   • "**5페이지 이미지 빼고 텍스트만**"
@@ -1622,7 +1622,7 @@ ${html.slice(0, 15000)}
   • "**① 컨펌**" / "**② 배포해**" / "**1번 확정 올려**" / "**② push**"
   ⚠️ 그냥 "1번 좋아" / "1번으로 하자" 만으로는 배포 안 돼요 (실수 방지)
 
-— 편집장 (체크포인트 ③)`,
+ (체크포인트 ③)`,
   );
 }
 
@@ -1639,13 +1639,13 @@ export async function handleOptionChoice(choice) {
 
   await sendMessage(
     bots.editor,
-    `좋아요 @주현대리, **${choice}** 로 가겠습니다. 카피·아트 작업 들어가요. HTML 30~60초 걸려요. 잠깐만 기다려주세요.\n\n— 편집장`,
+    `좋아요 @주현대리, **${choice}** 로 가겠습니다. 카피·아트 작업 들어가요. HTML 30~60초 걸려요. 잠깐만 기다려주세요.\n\n`,
   );
 
   // 아트디렉터 착수 리액션
   await sendMessage(
     bots.artDirector,
-    `받았어요, ${choice} 들어갑니다. 카피 필요한 만큼 담고 디자인 구현 시작.\n\n— 아트`,
+    `받았어요, ${choice} 들어갑니다. 카피 필요한 만큼 담고 디자인 구현 시작.\n\n`,
   );
 
   // 긴 작업이라 주기적으로 타이핑 인디케이터
@@ -1668,7 +1668,7 @@ export async function handleOptionChoice(choice) {
     const msg = String(e.message || e).slice(0, 160);
     await sendMessage(
       bots.editor,
-      `⚠️ @주현대리 작업 중 에러가 났어요.\n\n에러: ${msg}\n\n다시 옵션 선택(①/②/③) 하면 재시도합니다. "취소" 로 세션 종료도 가능해요.\n\n— 편집장`,
+      `⚠️ @주현대리 작업 중 에러가 났어요.\n\n에러: ${msg}\n\n다시 옵션 선택(①/②/③) 하면 재시도합니다. "취소" 로 세션 종료도 가능해요.\n\n`,
     ).catch(() => {});
   }
 }
@@ -1677,7 +1677,7 @@ async function _runBuilding(choice, typingInterval) {
   const s = getSession();
   if (!s) throw new Error('세션이 사라짐');
 
-  // HTML 바로 생성 (카피와 디자인 통합 — 아트디렉터가 통째로)
+  // HTML 바로 생성 (카피와 디자인 통합 디렉터가 통째로)
   const design = await loadCurrentDesign();
   const artSystem = await loadAgentSystem('art-director');
 
@@ -1781,7 +1781,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
   // 아트 완성 보고
   await sendMessage(
     bots.artDirector,
-    `🎨 완성이요. 편집장, 확인 넘깁니다. placeholder 그라디언트 마감 + 노션 CTA 박았어요.\n\n— 아트`,
+    `🎨 완성이요. 편집장, 확인 넘깁니다. placeholder 그라디언트 마감 + 노션 CTA 박았어요.\n\n`,
   );
 
   // 자동 임시 Vercel preview 배포 (매 revision마다 새 URL)
@@ -1790,7 +1790,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
   const previewProjectName = `cardnews-g${_gidSlug()}-${slug}-r${revN}`.slice(0, 50);
   let previewUrl = null;
   try {
-    await sendMessage(bots.editor, `🚀 임시 미리보기 배포 중 (revision ${revN})...\n\n— 편집장`);
+    await sendMessage(bots.editor, `🚀 임시 미리보기 배포 중 (revision ${revN})...\n\n`);
     await execAsync(
       `vercel deploy --prod --yes --name ${previewProjectName}`,
       { cwd: outDir, maxBuffer: 10 * 1024 * 1024 },
@@ -1807,7 +1807,7 @@ Markdown 코드 블록(\`\`\`html)도 X. 순수 HTML만.`;
     : '';
   await sendMessage(
     bots.editor,
-    `@주현대리 ${revN > 1 ? `수정본(${revN}회차)` : '다 됐어요'}. 최종 확인 부탁드립니다.\n${urlLine}\n${userNotesLine}✅ 카피 **${s.audience}** 오디언스/시사점 반영\n✅ 디자인 ${choice} (${design.name})\n\n"컨펌" 해주시면 정식 배포, "수정 [내용]" / "취소" 도 OK.\n\n— 편집장 (체크포인트 ③)`,
+    `@주현대리 ${revN > 1 ? `수정본(${revN}회차)` : '다 됐어요'}. 최종 확인 부탁드립니다.\n${urlLine}\n${userNotesLine}✅ 카피 **${s.audience}** 오디언스/시사점 반영\n✅ 디자인 ${choice} (${design.name})\n\n"컨펌" 해주시면 정식 배포, "수정 [내용]" / "취소" 도 OK.\n\n (체크포인트 ③)`,
   );
 }
 
@@ -1819,7 +1819,7 @@ export async function handleFinalConfirm() {
   if (!s) return;
   updateSession({ state: STATES.DEPLOYING });
 
-  await sendMessage(bots.editor, `네, 바로 올릴게요 @주현대리. Vercel 푸시 중...\n\n— 편집장`);
+  await sendMessage(bots.editor, `네, 바로 올릴게요 @주현대리. Vercel 푸시 중...\n\n`);
   await typing(bots.editor);
 
   try {
@@ -1841,13 +1841,13 @@ export async function handleFinalConfirm() {
 
       await sendMessage(
         bots.editor,
-        `@주현대리 다 됐어요 🎉\n\n${url}\n\nPC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
+        `@주현대리 다 됐어요 🎉\n\n${url}\n\nPC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n`,
       );
     } else {
-      await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n— 편집장`);
+      await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n`);
     }
   } catch (e) {
-    await sendMessage(bots.editor, `❌ 배포 실패: ${String(e).slice(0, 300)}\n\n— 편집장`);
+    await sendMessage(bots.editor, `❌ 배포 실패: ${String(e).slice(0, 300)}\n\n`);
   }
 
   resetSession();
@@ -1861,7 +1861,7 @@ export async function handleFinalDeploy(finalId, finalVersion) {
   if (!s) return;
   const versions = s.fullVersions?.[finalId] || [];
   if (versions.length === 0) {
-    await sendMessage(bots.editor, `⚠️ ${finalId} 완성본이 세션에 없어요. 처음부터 다시 할까요?\n\n— 편집장`);
+    await sendMessage(bots.editor, `⚠️ ${finalId} 완성본이 세션에 없어요. 처음부터 다시 할까요?\n\n`);
     return;
   }
   // 버전 미지정 → 최신
@@ -1869,14 +1869,14 @@ export async function handleFinalDeploy(finalId, finalVersion) {
     ? versions.find((x) => x.v === finalVersion)
     : versions[versions.length - 1];
   if (!target) {
-    await sendMessage(bots.editor, `⚠️ ${finalId} v${finalVersion} 기록 없음. 있는 버전: ${versions.map((x) => 'v' + x.v).join(', ')}\n\n— 편집장`);
+    await sendMessage(bots.editor, `⚠️ ${finalId} v${finalVersion} 기록 없음. 있는 버전: ${versions.map((x) => 'v' + x.v).join(', ')}\n\n`);
     return;
   }
 
   updateSession({ state: STATES.DEPLOYING, finalChoice: { id: finalId, version: target.v } });
   log.state(STATES.AWAITING_FINAL_CHOICE, STATES.DEPLOYING, `final=${finalId} v${target.v}`);
 
-  await sendMessage(bots.editor, `네, ${finalId} v${target.v} 로 올릴게요 @주현대리. Vercel 푸시 중...\n\n— 편집장`);
+  await sendMessage(bots.editor, `네, ${finalId} v${target.v} 로 올릴게요 @주현대리. Vercel 푸시 중...\n\n`);
   await typing(bots.editor);
 
   try {
@@ -1898,14 +1898,14 @@ export async function handleFinalDeploy(finalId, finalVersion) {
       updateSession({ deployUrl: deployedUrl });
       await sendMessage(
         bots.editor,
-        `@주현대리 다 됐어요 🎉\n\n${deployedUrl}\n\n(${finalId} ${target.v === versions[versions.length-1].v ? '최신' : 'v' + target.v} 버전) PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n— 편집장`,
+        `@주현대리 다 됐어요 🎉\n\n${deployedUrl}\n\n(${finalId} ${target.v === versions[versions.length-1].v ? '최신' : 'v' + target.v} 버전) PC + 모바일 모두 열어보세요. 다음 편 때 뵐게요.\n\n`,
       );
     } else {
-      await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n— 편집장`);
+      await sendMessage(bots.editor, `❌ 배포는 됐는데 URL 파싱 실패. 로그 확인 필요.\n\n`);
     }
   } catch (e) {
     log.error('DEPLOY', 'handleFinalDeploy 실패', e);
-    await sendMessage(bots.editor, `❌ 배포 실패: ${String(e).slice(0, 300)}\n\n— 편집장`);
+    await sendMessage(bots.editor, `❌ 배포 실패: ${String(e).slice(0, 300)}\n\n`);
     updateSession({ state: STATES.AWAITING_FINAL_CHOICE });
     return;
   }
@@ -1966,7 +1966,7 @@ export async function handleUserText(text) {
       log.info('COPY_PARSE', `action=${f.action} variant=${f.variant} chosen=${s.chosenProvider} notes=${f.notes.length}`);
 
       if (f.action === 'cancel') {
-        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
+        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n`);
         resetSession();
         break;
       }
@@ -1977,7 +1977,7 @@ export async function handleUserText(text) {
         if (f.action === 'select_variant' && f.variant) {
           const chosen = s.copyDrafts[f.variant];
           if (!chosen) {
-            await sendMessage(bots.editor, `⚠️ ${f.variant === 'opus' ? 'Opus' : 'GPT'} 버전이 세션에 없어요. 다른 쪽 고르세요.\n\n— 편집장`);
+            await sendMessage(bots.editor, `⚠️ ${f.variant === 'opus' ? 'Opus' : 'GPT'} 버전이 세션에 없어요. 다른 쪽 고르세요.\n\n`);
             break;
           }
           updateSession({ copyDraft: chosen, chosenProvider: f.variant });
@@ -1999,7 +1999,7 @@ export async function handleUserText(text) {
 
 A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRevCount || 1) + 1}** 뽑을게요. 30~60초 걸려요.
 
-— 편집장 (체크포인트 ①.5b)`,
+ (체크포인트 ①.5b)`,
             );
 
             try {
@@ -2030,11 +2030,11 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
               await _presentCopyDraft(newCopy, vLabel);
               await sendMessage(
                 bots.editor,
-                `@주현대리 ${label} 합본 카피 ${vLabel} 나왔어요. 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+                `@주현대리 ${label} 합본 카피 ${vLabel} 나왔어요. 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**"  단계로 갑니다.\n\n`,
               );
             } catch (e) {
               log.error('COPY_SELECT_AND_APPLY', '재생성 실패', e);
-              await sendMessage(bots.editor, `⚠️ 합본 카피 생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주시거나 다른 지시 주세요.\n\n— 편집장`);
+              await sendMessage(bots.editor, `⚠️ 합본 카피 생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주시거나 다른 지시 주세요.\n\n`);
             }
             break;
           }
@@ -2050,14 +2050,14 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
   • "3번 슬라이드 헤드 더 강하게"
   • "데이터 파트 축소"
 
-🔀 **합본·발췌 텍스트 투입** (긴 텍스트 붙여넣기 — A·B 다 참고 + 글자 그대로 존중)
+합본·발췌 텍스트 투입** (긴 텍스트 붙여넣기 — A·B 다 참고 + 글자 그대로 존중)
   예) "A의 표지 헤드 쓰고, B의 시사점 스타일로 통일, 3번 슬라이드는 [여기 직접 쓴 본문...]"
   → LLM이 A·B 원본 + 주신 텍스트 + 오디언스 맥락 모두 반영해 v2 생성
 
-🔄 다 쌓고 "**반영해**" / "**v2 뽑아줘**" — 그때 재생성
-🚀 만족이면 "**카피 OK**" — 아트 옵션 단계로 넘어갈게요.
+다 쌓고 "**반영해**" / "**v2 뽑아줘**" — 그때 재생성
+만족이면 "**카피 OK**"  옵션 단계로 넘어갈게요.
 
-— 편집장 (체크포인트 ①.5b)`,
+ (체크포인트 ①.5b)`,
           );
           break;
         }
@@ -2075,7 +2075,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
 
 > ${f.notes.join(' / ').slice(0, 200)}
 
-— 편집장`,
+`,
           );
 
           try {
@@ -2099,11 +2099,11 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
             await _presentCopyDraft(newCopy, vLabel);
             await sendMessage(
               bots.editor,
-              `@주현대리 피드백 반영한 카피 ${vLabel} 나왔어요 (${newCopy.slides.length}장). 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**".\n\n— 편집장`,
+              `@주현대리 피드백 반영한 카피 ${vLabel} 나왔어요 (${newCopy.slides.length}장). 더 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**".\n\n`,
             );
           } catch (e) {
             log.error('COPY_REGEN_BEFORE_AB', '재생성 실패', e);
-            await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 시도해주세요.\n\n— 편집장`);
+            await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 시도해주세요.\n\n`);
           }
           break;
         }
@@ -2117,7 +2117,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
   • 또는 **"A 베이스로 B의 X 추가"** 처럼 합본 지시 함께 주셔도 OK (바로 v2 생성)
   • 또는 **수정 피드백** ("내용 더 넣어줘", "장표 수 늘려") → 자동으로 재생성
 
-— 편집장 (체크포인트 ①.5a)`,
+ (체크포인트 ①.5a)`,
         );
         break;
       }
@@ -2125,13 +2125,13 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
       // "카피 OK"/"승인" → 아트 옵션 단계로 진행 (confirm 의미 전환)
       if (f.action === 'confirm') {
         if (!s.copyDraft) {
-          await sendMessage(bots.editor, `카피가 아직 확정 안 됐어요. A/B 중 하나 먼저 골라주세요.\n\n— 편집장`);
+          await sendMessage(bots.editor, `카피가 아직 확정 안 됐어요. A/B 중 하나 먼저 골라주세요.\n\n`);
           break;
         }
         updateSession({ copyApproved: true });
         await sendMessage(
           bots.editor,
-          `✅ 카피 승인 받았어요 @주현대리 (${s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5'} 기준). 아트 옵션 단계로 넘어갑니다.\n\n— 편집장`,
+          `✅ 카피 승인 받았어요 @주현대리 (${s.chosenProvider === 'opus' ? 'Claude Opus' : 'GPT-5'} 기준). 아트 옵션 단계로 넘어갑니다.\n\n`,
         );
         await proposeArtOptions();
         break;
@@ -2153,7 +2153,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
 
 계속 주세요. 다 끝나면 "**반영해**" / "**v2 뽑아**" — 한번에 반영해서 새 버전 만들게요.
 
-— 편집장`,
+`,
         );
         break;
       }
@@ -2165,12 +2165,12 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
         if (copyNotes.length === 0) {
           await sendMessage(
             bots.editor,
-            `누적된 카피 수정 메모가 없어요. 구체적 수정 요구 주시면 쌓아뒀다가 반영해요.\n\n— 편집장`,
+            `누적된 카피 수정 메모가 없어요. 구체적 수정 요구 주시면 쌓아뒀다가 반영해요.\n\n`,
           );
           break;
         }
         if (!s.chosenProvider) {
-          await sendMessage(bots.editor, `먼저 A/B 중 하나 골라주세요. 그 후에 수정 반영됩니다.\n\n— 편집장`);
+          await sendMessage(bots.editor, `먼저 A/B 중 하나 골라주세요. 그 후에 수정 반영됩니다.\n\n`);
           break;
         }
 
@@ -2196,7 +2196,7 @@ A·B 두 버전 참고 + 위 지시 반영해서 **${label} 카피 v${(s.copyRev
           `알겠어요 @주현대리. ${ctxLine} 반영해서 ${providerLabel} 카피 v${(s.copyRevCount || 1) + 1} 뽑을게요:
 ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`).join('\n')}
 
-30~60초 걸려요.\n\n— 편집장`,
+30~60초 걸려요.\n\n`,
         );
 
         try {
@@ -2227,11 +2227,11 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
           await _presentCopyDraft(newCopy, vLabel);
           await sendMessage(
             bots.editor,
-            `@주현대리 ${providerLabel} 카피 ${vLabel} 나왔어요${hasUserMerge ? ' (A·B 참고 + 주신 합본 텍스트 반영)' : ''}. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**" — 아트 단계로 갑니다.\n\n— 편집장`,
+            `@주현대리 ${providerLabel} 카피 ${vLabel} 나왔어요${hasUserMerge ? ' (A·B 참고 + 주신 합본 텍스트 반영)' : ''}. 또 수정할 거 있으시면 쌓으시고, 괜찮으면 "**카피 OK**"  단계로 갑니다.\n\n`,
           );
         } catch (e) {
           log.error('COPY_REVISE', '재생성 실패', e);
-          await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주세요.\n\n— 편집장`);
+          await sendMessage(bots.editor, `⚠️ 카피 재생성 실패: ${String(e.message || e).slice(0, 150)}. 다시 "반영해" 주세요.\n\n`);
         }
         break;
       }
@@ -2250,7 +2250,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
   • "**카피 OK**" / "**승인**" → 아트 옵션 단계로
   • "**취소**"
 
-— 편집장`,
+`,
       );
       break;
     }
@@ -2275,13 +2275,13 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         if (parsed.notes.length > 0) {
           await sendMessage(
             bots.editor,
-            `📝 추가 요구 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n카피·아트 제작 시 반영합니다.\n\n— 편집장`,
+            `📝 추가 요구 받았어요:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n카피·아트 제작 시 반영합니다.\n\n`,
           );
         }
         if (parsed.questions.length > 0) {
           await sendMessage(
             bots.editor,
-            `질문 주신 건 작업하면서 답변 드릴게요: ${parsed.questions.join(' / ')}\n\n— 편집장`,
+            `질문 주신 건 작업하면서 답변 드릴게요: ${parsed.questions.join(' / ')}\n\n`,
           );
         }
         await handleStyleChoices(parsed.choices);
@@ -2289,7 +2289,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         // 옵션은 안 정했지만 추가 요구는 있음 → ack + 옵션 재요청
         await sendMessage(
           bots.editor,
-          `📝 받았어요 @주현대리:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n메모해뒀다가 작업에 반영할게요.\n\n그래서 ①/②/③ 중 어느 옵션으로 가실까요?\n\n— 편집장`,
+          `📝 받았어요 @주현대리:\n${parsed.notes.map((n) => `  • ${n}`).join('\n')}\n메모해뒀다가 작업에 반영할게요.\n\n그래서 ①/②/③ 중 어느 옵션으로 가실까요?\n\n`,
         );
         if (parsed.questions.length > 0) {
           await answerQuestionsAndReprompt(parsed.questions, s, 'option');
@@ -2300,7 +2300,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
       } else {
         await sendMessage(
           bots.editor,
-          `@주현대리 ①/②/③ 중에서 선택해 주시거나 "편집장 추천대로" 같이 답해주세요. 추가 요구사항이 있으시면 같이 적어주셔도 돼요 (예: "①로 가되 색을 더 밝게").\n\n— 편집장`,
+          `@주현대리 ①/②/③ 중에서 선택해 주시거나 "편집장 추천대로" 같이 답해주세요. 추가 요구사항이 있으시면 같이 적어주셔도 돼요 (예: "①로 가되 색을 더 밝게").\n\n`,
         );
       }
       break;
@@ -2311,7 +2311,7 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
       log.info('FINAL_PARSE', `action=${f.action} finalId=${f.finalId} v=${f.finalVersion} reviseId=${f.reviseId}`);
 
       if (f.action === 'cancel') {
-        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
+        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n`);
         resetSession();
         break;
       }
@@ -2341,7 +2341,7 @@ ${summary}
 
 계속 주세요. 다 끝나면 "**${targetId !== '공통' ? targetId + ' ' : ''}반영해**" / "**v2 뽑아**" 하시면 한번에 반영해서 새 버전 만들게요.
 
-— 편집장`,
+`,
         );
         break;
       }
@@ -2357,7 +2357,7 @@ ${summary}
         if (relevantNotes.length === 0) {
           await sendMessage(
             bots.editor,
-            `누적된 수정 메모가 없어요 @주현대리. "① 1페이지 X 고쳐" 같이 구체적으로 주시면 쌓아뒀다가 반영해요.\n\n— 편집장`,
+            `누적된 수정 메모가 없어요 @주현대리. "① 1페이지 X 고쳐" 같이 구체적으로 주시면 쌓아뒀다가 반영해요.\n\n`,
           );
           break;
         }
@@ -2373,7 +2373,7 @@ ${summary}
           `알겠어요 @주현대리. **${targetId}** 에 누적된 **${relevantNotes.length}건** 반영해서 새 버전 만들게요:
 ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
 
-기존 버전은 그대로 보관. 2분 내외.\n\n— 편집장`,
+기존 버전은 그대로 보관. 2분 내외.\n\n`,
         );
         await handleStyleChoices([targetId === '공통' ? (s.styleChoices?.[0] || '①') : targetId]);
         break;
@@ -2384,9 +2384,9 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
         const list = s.fullVersions?.[f.finalId] || [];
         const target = list.find((x) => x.v === f.finalVersion);
         if (!target) {
-          await sendMessage(bots.editor, `⚠️ ${f.finalId} v${f.finalVersion} 기록이 없어요. 있는 버전: ${list.map((x) => 'v' + x.v).join(', ') || '없음'}\n\n— 편집장`);
+          await sendMessage(bots.editor, `⚠️ ${f.finalId} v${f.finalVersion} 기록이 없어요. 있는 버전: ${list.map((x) => 'v' + x.v).join(', ') || '없음'}\n\n`);
         } else {
-          await sendMessage(bots.artDirector, `📎 ${f.finalId} v${f.finalVersion} 다시 보내드려요.\n\n— 아트`);
+          await sendMessage(bots.artDirector, `📎 ${f.finalId} v${f.finalVersion} 다시 보내드려요.\n\n`);
           await sendDocument(bots.artDirector, target.path, `${f.finalId} v${f.finalVersion} (재전송)`);
         }
         break;
@@ -2406,7 +2406,7 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
   • "**① v1 다시 봐**" → 예전 버전 재전송
   • "**취소**"
 
-— 편집장`,
+`,
       );
       break;
     }
@@ -2417,7 +2417,7 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
       if (action === 'confirm') {
         await handleFinalConfirm();
       } else if (action === 'cancel') {
-        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n— 편집장`);
+        await sendMessage(bots.editor, `작업 취소. 다음 편 때 뵐게요.\n\n`);
         resetSession();
       } else if (action === 'revise' && notes.length > 0) {
         // 진짜 수정 — userNotes에 반영하고 HTML 재생성
@@ -2425,7 +2425,7 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
         updateSession({ userNotes: allNotes });
         await sendMessage(
           bots.editor,
-          `알겠어요 @주현대리. 받은 요구 반영해서 다시 만들게요:\n${notes.map((n) => `  • ${n}`).join('\n')}\n\n1~2분 걸려요, 잠깐만요.\n\n— 편집장`,
+          `알겠어요 @주현대리. 받은 요구 반영해서 다시 만들게요:\n${notes.map((n) => `  • ${n}`).join('\n')}\n\n1~2분 걸려요, 잠깐만요.\n\n`,
         );
         // 기존 옵션 선택 유지 → handleOptionChoice 재호출로 HTML 재생성
         await handleOptionChoice(s.optionChoice);
@@ -2435,7 +2435,7 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
       } else {
         await sendMessage(
           bots.editor,
-          `@주현대리 "컨펌" / "취소" / "수정 [구체적 내용]" 중 하나로 답해주시거나, 궁금한 거 있으시면 편하게 질문 주세요.\n\n— 편집장`,
+          `@주현대리 "컨펌" / "취소" / "수정 [구체적 내용]" 중 하나로 답해주시거나, 궁금한 거 있으시면 편하게 질문 주세요.\n\n`,
         );
       }
       break;
@@ -2448,7 +2448,7 @@ ${relevantNotes.map((n) => `  • ${n}`).join('\n')}
         log.warn('EMERGENCY_RESET', `state=${s.state} text="${text.slice(0,40)}"`);
         await sendMessage(
           bots.editor,
-          `🛑 강제 리셋 받았어요. 진행 중이던 작업 중단하고 세션 초기화합니다. 처음부터 다시 하시려면 소스 던져주세요.\n\n— 편집장`,
+          `🛑 강제 리셋 받았어요. 진행 중이던 작업 중단하고 세션 초기화합니다. 처음부터 다시 하시려면 소스 던져주세요.\n\n`,
         ).catch(() => {});
         resetSession();
       }
@@ -2570,7 +2570,7 @@ async function handleOptionRegenerate(targetIds, userNotes) {
   if (!Array.isArray(s.options) || s.options.length === 0) {
     await sendMessage(
       bots.editor,
-      `⚠️ 재설계할 기존 옵션이 없어요. 소스부터 다시 받아서 3옵션 제안할까요?\n\n— 편집장`,
+      `⚠️ 재설계할 기존 옵션이 없어요. 소스부터 다시 받아서 3옵션 제안할까요?\n\n`,
     );
     return;
   }
@@ -2587,17 +2587,17 @@ async function handleOptionRegenerate(targetIds, userNotes) {
   if (overCapMatch) {
     await sendMessage(
       bots.editor,
-      `📌 시스템은 한 번에 최대 **3개 옵션**만 제시해요 (선택 피로 방지). 3개 슬롯을 서로 확실히 다르게 다시 뽑아드릴게요.\n\n— 편집장`,
+      `📌 시스템은 한 번에 최대 **3개 옵션**만 제시해요 (선택 피로 방지). 3개 슬롯을 서로 확실히 다르게 다시 뽑아드릴게요.\n\n`,
     );
   }
 
   await sendMessage(
     bots.editor,
-    `🔄 ${targetsLabel} 재설계 요청 받았어요. 아트한테 넘길게요. 60~90초 걸려요.\n\n— 편집장`,
+    `🔄 ${targetsLabel} 재설계 요청 받았어요. 아트한테 넘길게요. 60~90초 걸려요.\n\n`,
   );
   await sendMessage(
     bots.artDirector,
-    `알겠어요. ${targetsLabel} 확실히 다른 방향으로 뽑아올게요. 기존 ${keepIds.join('·') || '없음'}은 유지.\n\n— 아트`,
+    `알겠어요. ${targetsLabel} 확실히 다른 방향으로 뽑아올게요. 기존 ${keepIds.join('·') || '없음'}은 유지.\n\n`,
   );
 
   // 아트한테 신규 옵션 정의 요청 (기존과 차별화 명시)
@@ -2653,7 +2653,7 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
   if (newOptions.length === 0) {
     await sendMessage(
       bots.editor,
-      `⚠️ 아트 재제안 실패했어요. 잠시 후 다시 "재설계" 요청해 주세요. 아니면 기존 옵션 중 선택도 OK.\n\n— 편집장`,
+      `⚠️ 아트 재제안 실패했어요. 잠시 후 다시 "재설계" 요청해 주세요. 아니면 기존 옵션 중 선택도 OK.\n\n`,
     );
     return;
   }
@@ -2669,7 +2669,7 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
     talkParts.push('');
   }
   talkParts.push('미리보기 만드는 중이에요.');
-  talkParts.push('— 아트');
+  talkParts.push('');
   await sendMessage(bots.artDirector, talkParts.join('\n'));
 
   // 새 옵션만 미리보기 생성·배포
@@ -2680,7 +2680,7 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
     log.error('REGENERATE', '미리보기 생성 실패', e);
     await sendMessage(
       bots.editor,
-      `⚠️ 새 미리보기 배포 실패 (${String(e.message || e).slice(0, 120)}). 글 옵션 설명만 보고 선택해도 OK.\n\n— 편집장`,
+      `⚠️ 새 미리보기 배포 실패 (${String(e.message || e).slice(0, 120)}). 글 옵션 설명만 보고 선택해도 OK.\n\n`,
     );
   }
 
@@ -2692,7 +2692,7 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
   updateSession({ options: mergedOptions });
 
   if (newPreviews.length > 0) {
-    await sendMessage(bots.artDirector, `🎨 새 미리보기 ${newPreviews.length}개 첨부 드려요 — 클릭해서 열어보세요.${keepIds.length > 0 ? `\n※ ${keepIds.join('·')} 는 기존 미리보기 그대로.` : ''}\n\n— 아트`);
+    await sendMessage(bots.artDirector, `🎨 새 미리보기 ${newPreviews.length}개 첨부 드려요 — 클릭해서 열어보세요.${keepIds.length > 0 ? `\n※ ${keepIds.join('·')} 는 기존 미리보기 그대로.` : ''}\n\n`);
     for (const p of newPreviews) {
       try {
         await sendDocument(bots.artDirector, p.path, `${p.id} ${p.name}`);
@@ -2705,7 +2705,7 @@ ${targetOptionsJson.map((o) => `${o.id}: 기존 "${o.name}" — 새로 만드세
 
   await sendMessage(
     bots.editor,
-    `@주현대리 ①/②/③ 중 어느 걸로 가실까요? 또 다시 뽑을 거 있으면 말씀 주세요.\n\n— 편집장 (체크포인트 ②)`,
+    `@주현대리 ①/②/③ 중 어느 걸로 가실까요? 또 다시 뽑을 거 있으면 말씀 주세요.\n\n (체크포인트 ②)`,
   );
 }
 
@@ -2731,7 +2731,7 @@ ${questions.map((q) => `- ${q}`).join('\n')}
 - 사용자 메모: ${(session?.userNotes || []).join(' / ') || '없음'}
 
 편집장 톤(ENFJ)으로 자연스럽게 답한 뒤 ${stepHint}
-3~6줄. 끝에 "— 편집장"`;
+3~6줄. 끝에 ""`;
 
   const { text } = await callAgent(editorSystem, prompt, { model: models.main, maxTokens: 500 });
   await sendMessage(bots.editor, text);
