@@ -1163,18 +1163,18 @@ ${copySummary}
 
   // 3500자 초과 시 앞부분만 메시지, 나머지는 잘라냄
   const planMsg = planLines.length > 3500 ? planLines.slice(0, 3500) + '\n...(이하 생략)' : planLines;
-  await sendMessage(bots.artDirector, `${artJson.options.length}개 디자인 계획:\n\n${planMsg}\n\n피드백 주면 반영하고, "미리보기 만들어"하면 제작 들어간다.`);
+  await sendMessage(bots.artDirector, `${artJson.options.length}개 디자인 계획:\n\n${planMsg}\n\n미리보기 바로 만든다. ~3분.`);
 
-  // 미리보기는 바로 만들지 않음 — 피드백 대기
-  // 사용자가 "미리보기 만들어" / "OK" / 옵션 선택하면 그때 생성
   updateSession({
     state: STATES.AWAITING_OPTION,
     options: artJson.options,
     previewsGenerated: false,
   });
-  log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${artJson.options.length} (plan only, no previews yet)`);
+  log.state(STATES.AWAITING_COPY_APPROVAL, STATES.AWAITING_OPTION, `options=${artJson.options.length}`);
 
-  await sendMessage(bots.editor, `@주현대리 옵션 계획 봐.\n\n"미리보기 만들어" → 6개 전부 미리보기\n번호 골라 ("①" / "①③") → 선택한 것만 미리보기\n\n갤러리: http://localhost:4000`);
+  // 바로 6개 전체 미리보기 제작
+  const allIds = artJson.options.map(o => o.id);
+  await handleStyleChoices(allIds);
 }
 
 // ──────────────────────────────────────────────
