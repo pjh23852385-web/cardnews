@@ -2329,6 +2329,15 @@ ${copyNotes.map((n) => `  • ${n.length > 120 ? n.slice(0, 120) + ' …' : n}`)
         break;
       }
 
+      // "N컨펌" / "④ 컨펌" → 바로 풀 빌드 + 배포 (미리보기 이미 봤으니까)
+      const confirmMatch = text.match(/([①②③④⑤⑥⑦⑧⑨⑩]|[1-9]|10)\s*컨펌/);
+      if (confirmMatch) {
+        const numMap = {'1':'①','2':'②','3':'③','4':'④','5':'⑤','6':'⑥','7':'⑦','8':'⑧','9':'⑨','10':'⑩'};
+        const finalId = numMap[confirmMatch[1]] || confirmMatch[1];
+        await handleFinalDeploy(finalId, null);
+        break;
+      }
+
       const parsed = await parseOptionChoice(text, s);
 
       // 부가 요구는 session.userNotes 에 저장
