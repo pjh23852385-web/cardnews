@@ -1029,19 +1029,19 @@ ${copySummary}
 \`\`\`json
 {
   "analysis": "카피 분석 2~3줄 (150자 내외). 카피 톤, 슬라이드 개수, 숫자 강조 여부, 시사점 위치 등.",
-  "intro_line": "발화 시작 문구 (예: '카피 보니까 이런 특성이 있어서 3가지 방향 가져왔어.')",
+  "intro_line": "발화 시작 문구 (예: '카피 보니까 이런 특성이 있어서 10가지 방향 가져왔어.')",
   "options": [
     {
       "id": "①",
-      "name": "감성적 이름 (예: 암실 호텔 다이닝 × Stripe 대시보드)",
+      "name": "감성적 이름 (예: 새벽 3시 블룸버그 터미널 × Swiss Grid)",
       "reference_brands": ["stripe", "linear.app"],
       "colors": "색감 (레퍼런스 브랜드의 실제 hex 코드 활용)",
       "layout": "레이아웃",
       "interaction": "인터랙션 (Three.js/GSAP/CSS 3D 등 구체적 기법)",
       "fits": "카피 특성과 매칭 이유"
     },
-    {"id": "②", "name": "...", "reference_brands": [...], "colors": "...", "layout": "...", "interaction": "...", "fits": "..."},
-    {"id": "③", "name": "...", "reference_brands": [...], "colors": "...", "layout": "...", "interaction": "...", "fits": "..."}
+    {"id": "②", ...}, {"id": "③", ...}, {"id": "④", ...}, {"id": "⑤", ...},
+    {"id": "⑥", ...}, {"id": "⑦", ...}, {"id": "⑧", ...}, {"id": "⑨", ...}, {"id": "⑩", ...}
   ],
   "outro_line": "마무리 한 줄"
 }
@@ -1049,7 +1049,7 @@ ${copySummary}
 
 규칙:
 - JSON 블록 하나만. 앞뒤 아무 설명 없이.
-- options 정확히 3개. id는 ①/②/③ 유니코드.
+- options 정확히 **10개**. id는 ①~⑩ 유니코드.
 - **reference_brands**: 위 카탈로그에서 영감 받은 브랜드 1~2개 (영문 소문자, 카탈로그 name 그대로). 3개 옵션이 **서로 다른** 브랜드를 참조해야 함.
 - 아트 톤(ENTP, 조수용+배민 디자인팀)으로 자연스럽게 (JSON 필드 텍스트 안에서).
 
@@ -1084,11 +1084,11 @@ ${copySummary}
     try {
       const r = await callAgent(artSystem, artPrompt, {
         model: models.main,
-        maxTokens: 4500,
+        maxTokens: 12000,
         json: true,
       });
       artJson = r.json;
-      if (artJson && Array.isArray(artJson.options) && artJson.options.length === 3) break;
+      if (artJson && Array.isArray(artJson.options) && artJson.options.length >= 5) break;
       if (attempt < 2) { await typing(bots.artDirector); }
     } catch (e) {
       if (attempt === 2) {
@@ -1161,17 +1161,24 @@ ${JSON.stringify(options, null, 2)}
 요구사항:
 - 오디언스 기준으로 **딱 하나** 추천 + 한 줄 이유
 - 추천을 "추천: ①" 같이 명시
-- "①/②/③ 중 어떤 걸로?" 질문 (복수 킵도 OK 한 줄 추가)
-- 3~5줄
+- "①~⑩ 중 어떤 걸로?" 질문 (복수 킵도 OK 한 줄 추가)
+- "갤러리(localhost:4000)에서 미리보기 비교 가능" 한 줄 추가
+- 3~6줄
 - 끝에 "— 편집장 (체크포인트 ②)"`;
 
   const { text: summaryMsg } = await callAgent(editorSystem, summaryPrompt, {
     model: models.main,
     maxTokens: 400,
   });
-  const recMatch = summaryMsg.match(/추천[\s:]*([①②③])/);
+  const recMatch = summaryMsg.match(/추천[\s:]*([①②③④⑤⑥⑦⑧⑨⑩])/);
   const recommendedOption = recMatch ? recMatch[1] : null;
   await sendMessage(bots.editor, summaryMsg);
+
+  // 갤러리 URL 안내
+  await sendMessage(
+    bots.artDirector,
+    `🎨 프리뷰 갤러리에서 ${options.length}개 디자인을 비교해보세요:\n👉 http://localhost:4000\n\nDesktop/Mobile 뷰 전환도 가능해요.\n\n— 아트`,
+  );
 
   updateSession({
     state: STATES.AWAITING_OPTION,

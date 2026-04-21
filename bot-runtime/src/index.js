@@ -4,6 +4,7 @@ import { bots, paths, env, POLL_INTERVAL_MS } from './config.js';
 import { getUpdates, sendMessage, downloadFile, getMe } from './telegram.js';
 import { handleSourceReceived, handleUserText, runWithGroup } from './pipeline.js';
 import { buildBrandCatalog } from './agents.js';
+import { startGalleryServer } from './gallery.js';
 import fs from 'node:fs/promises';
 
 console.log('🤖 카드뉴스 봇 런타임 시작...');
@@ -88,6 +89,9 @@ async function pollLoop() {
     // 디자인 브랜드 카탈로그 빌드 (서버 시작 시 1회)
     const catalog = await buildBrandCatalog();
     console.log(`  🎨 디자인 카탈로그: ${catalog.cards.length}개 브랜드 로드`);
+
+    // 갤러리 프리뷰 서버 시작 (localhost:4000)
+    startGalleryServer();
     const groupIds = env.TELEGRAM_GROUP_IDS_LIST;
     console.log(`  📍 허용 그룹 (${groupIds.length}개): ${groupIds.join(', ')}`);
     console.log('\n📡 폴링 시작. Ctrl+C 로 종료.\n');
