@@ -70,7 +70,7 @@ export function startGalleryServer() {
     }
   });
 
-  server.listen(PORT, () => {
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`  🎨 갤러리 서버: http://localhost:${PORT}`);
   });
 
