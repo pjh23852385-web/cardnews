@@ -2999,7 +2999,9 @@ export async function handleUrlSource(url) {
 
     // PDF URL인 경우 — 바이너리 다운로드 후 pdf-parse
     if (contentType.includes('application/pdf') || url.toLowerCase().endsWith('.pdf')) {
-      const pdfParse = (await import('pdf-parse')).default;
+      const { createRequire } = await import('node:module');
+      const _require = createRequire(import.meta.url);
+      const pdfParse = _require('pdf-parse');
       const buf = Buffer.from(await res.arrayBuffer());
       const pdfData = await pdfParse(buf);
       const sourceText = pdfData.text;

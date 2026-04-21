@@ -6,7 +6,9 @@ import { handleSourceReceived, handleUserText, handleUrlSource, runWithGroup } f
 import { buildBrandCatalog } from './agents.js';
 import { startGalleryServer } from './gallery.js';
 import fs from 'node:fs/promises';
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 console.log('🤖 카드뉴스 봇 런타임 시작...');
 
