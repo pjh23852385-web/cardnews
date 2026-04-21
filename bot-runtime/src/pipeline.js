@@ -1442,6 +1442,25 @@ ${HANWHA_LOGO_RULE}
 - **CTA 슬라이드**: 블룸/글로우 강화 등으로 마무리 임팩트
 - \`swiper.on('slideChange')\` 에서 슬라이드별로 Three.js 씬 파라미터 변경
 
+### I. 이미지 삽입 (풀 빌드 전용 — 슬라이드의 30% 이상)
+- 전체 슬라이드의 **최소 30%에 Unsplash 이미지** 삽입
+- 이미지 URL 형식: \`https://images.unsplash.com/photo-{ID}?w=600&h=800&fit=crop\`
+- **가로 배열**: 이미지 좌측 35~40% + 텍스트 우측 60~65% (flex-direction:row)
+  \`\`\`html
+  <div class="slide-inner body-inner" style="flex-direction:row;gap:32px;align-items:center">
+    <div style="flex:0 0 38%;border-radius:10px;overflow:hidden">
+      <img src="https://images.unsplash.com/photo-...?w=600&h=800&fit=crop" style="width:100%;height:100%;object-fit:cover;display:block;max-height:60vh;border-radius:10px" alt="">
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+      <!-- 제목 + 본문 + implication -->
+    </div>
+  </div>
+  \`\`\`
+- **모바일 대응**: \`@media(max-width:680px)\` 에서 flex-direction:column 전환
+- 이미지 주제: 소스 본문 키워드에 맞는 추상적/테크/비즈니스 사진
+  예) AI → \`photo-1639322537228\`, 칩 → \`photo-1620712943543\`, 주식 → \`photo-1611974789855\`
+- **커버/CTA 슬라이드에는 이미지 안 넣음** (타이포 중심 유지)
+
 12. 코드 블록(\`\`\`) 금지. <!DOCTYPE 부터 </html> 까지만.`;
 
     log.info('BUILDING_FULLS', `html.start id=${opt.id} name="${opt.name}"`);
