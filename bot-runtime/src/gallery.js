@@ -84,10 +84,12 @@ export function startGalleryServer() {
 async function _findLatestPreviews() {
   const outputDir = paths.outputDir;
   try {
-    // output/g-<id>/ 하위 탐색
+    // output/g-<id>/ 하위 탐색 — previews 우선, 없으면 fulls
     const groups = await fs.readdir(outputDir);
-    let latestDir = null;
-    let latestTime = 0;
+    let latestPreviewDir = null;
+    let latestPreviewTime = 0;
+    let latestFullsDir = null;
+    let latestFullsTime = 0;
 
     for (const g of groups) {
       if (!g.startsWith('g-')) continue;
@@ -97,25 +99,35 @@ async function _findLatestPreviews() {
         const mPath = path.join(gPath, m);
         const slugs = await fs.readdir(mPath).catch(() => []);
         for (const s of slugs) {
-          // previews/ 와 fulls/ 둘 다 탐색 — 가장 최근 폴더 사용
-          for (const sub of ['fulls', 'previews']) {
-            const subPath = path.join(mPath, s, sub);
-            try {
-              const stat = await fs.stat(subPath);
-              if (stat.isDirectory() && stat.mtimeMs > latestTime) {
-                latestTime = stat.mtimeMs;
-                latestDir = subPath;
-              }
-            } catch { /* 없으면 다음 */ }
-          }
+          // previews 폴더 탐색
+          const previewPath = path.join(mPath, s, 'previews');
+          try {
+            const stat = await fs.stat(previewPath);
+            if (stat.isDirectory() && stat.mtimeMs > latestPreviewTime) {
+              latestPreviewTime = stat.mtimeMs;
+              latestPreviewDir = previewPath;
+            }
+          } catch { /* 없으면 다음 */ }
+          // fulls 폴더 탐색 (fallback)
+          const fullsPath = path.join(mPath, s, 'fulls');
+          try {
+            const stat = await fs.stat(fullsPath);
+            if (stat.isDirectory() && stat.mtimeMs > latestFullsTime) {
+              latestFullsTime = stat.mtimeMs;
+              latestFullsDir = fullsPath;
+            }
+          } catch { /* 없으면 다음 */ }
         }
       }
     }
 
+    // previews 우선, 없으면 fulls
+    const latestDir = latestPreviewDir || latestFullsDir;
     if (!latestDir) return [];
 
     const files = await fs.readdir(latestDir);
-    const htmlFiles = files.filter(f => f.endsWith('.html')).sort();
+    // index.html 제외, preview-*.html 또는 full-*.html만
+    const htmlFiles = files.filter(f => f.endsWith('.html') && f !== 'index.html').sort();
 
     const previews = [];
     for (const f of htmlFiles) {
