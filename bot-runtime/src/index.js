@@ -5,6 +5,7 @@ import { getUpdates, sendMessage, downloadFile, getMe } from './telegram.js';
 import { handleSourceReceived, handleUserText, handleUrlSource, runWithGroup } from './pipeline.js';
 import { buildBrandCatalog } from './agents.js';
 import { startGalleryServer } from './gallery.js';
+import { callVision } from './openai.js';
 import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -85,7 +86,40 @@ async function handleUpdate(update) {
       return;
     }
 
-    // 2) 텍스트 메시지 — URL 소스 감지 포함
+    // 2) 사진(photo) — OpenAI Vision으로 텍스트 추출
+    if (msg.photo && msg.photo.length > 0) {
+      // photo 배열의 가장 큰 해상도 선택
+      const largest = msg.photo[msg.photo.length - 1];
+      const now = new Date();
+      const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const imgPath = path.join(paths.sourcesDir, ym, `photo-${Date.now()}.jpg`);
+      await downloadFile(bots.editor, largest.file_id, imgPath);
+      console.log(`  📷 [g:${chatId}] 사진 저장: ${imgPath}`);
+
+      await sendMessage(bots.editor, `사진 받았어. 텍스트 추출 중... 30초 정도.`, chatId);
+
+      try {
+        const imgBuf = await fs.readFile(imgPath);
+        const caption = msg.caption ? `\n\n(사용자 코멘트: ${msg.caption})` : '';
+        const extracted = await callVision(imgBuf, '이 이미지의 모든 텍스트와 내용을 한국어로 상세히 추출해줘. 표/차트/그래프가 있으면 수치와 의미도 포함. 카드뉴스 소스로 쓸 거라 핵심 내용과 시사점이 잘 드러나게.');
+        if (!extracted || extracted.trim().length < 20) {
+          await sendMessage(bots.editor, `⚠️ 사진에서 충분한 텍스트를 못 찾았어. 더 선명한 사진이나 텍스트 버전으로 줘.`, chatId);
+          return;
+        }
+        const sourceText = extracted + caption;
+        console.log(`  🔍 [g:${chatId}] Vision 추출: ${sourceText.length}자`);
+        // .md로도 저장
+        const mdPath = imgPath.replace(/\.jpg$/i, '.md');
+        await fs.writeFile(mdPath, `---\nsource_type: photo\noriginal_file: ${path.basename(imgPath)}\n---\n\n${sourceText}`, 'utf-8');
+        await runWithGroup(chatId, () => handleSourceReceived(sourceText));
+      } catch (e) {
+        console.error(`❌ [g:${chatId}] Vision 실패:`, e);
+        await sendMessage(bots.editor, `❌ 사진 처리 실패: ${String(e.message).slice(0, 150)}`, chatId);
+      }
+      return;
+    }
+
+    // 3) 텍스트 메시지 — URL 소스 감지 포함
     if (msg.text) {
       // URL-only 메시지 감지 (세션 없는 상태에서 URL만 던진 경우 → 웹 소스로 처리)
       const urlMatch = msg.text.match(/^\s*(https?:\/\/\S+)\s*$/);

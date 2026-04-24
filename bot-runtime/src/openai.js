@@ -10,6 +10,54 @@ async function sleep(ms) {
 }
 
 /**
+ * OpenAI Vision API — 이미지에서 텍스트/내용 추출 (GPT-4o)
+ * @param {Buffer|string} imageData - 이미지 버퍼 또는 base64 URL
+ * @param {string} prompt - "이 이미지의 텍스트/내용을 추출해줘" 같은 지시
+ * @returns {Promise<string>} 추출된 텍스트
+ */
+export async function callVision(imageData, prompt = '이 이미지의 모든 텍스트와 내용을 추출해줘. 표/차트/그래프가 있으면 데이터도 포함.') {
+  const base64 = Buffer.isBuffer(imageData) ? imageData.toString('base64') : imageData;
+  const dataUrl = base64.startsWith('data:') ? base64 : `data:image/jpeg;base64,${base64}`;
+
+  const body = {
+    model: 'gpt-4o',
+    max_tokens: 4000,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: dataUrl } },
+        ],
+      },
+    ],
+  };
+
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), 120_000);
+  try {
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Vision API ${res.status}: ${err.slice(0, 200)}`);
+    }
+    const json = await res.json();
+    return json.choices?.[0]?.message?.content || '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * OpenAI Chat Completions 호출 (재시도 3회 + 타임아웃)
  * @param {string} systemPrompt
  * @param {string} userPrompt
